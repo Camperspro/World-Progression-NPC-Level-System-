@@ -2,6 +2,7 @@ DESCRIPTION: My take on a NPC level system designed for Sandbox. Enhance your (F
 
 ![Untitled](https://github.com/Camperspro/World-Progression-NPC-Level-System-/assets/61707333/c2827bf1-ce75-450a-8092-7e847f0fb850)
 ![Other Panels](https://github.com/Camperspro/World-Progression-NPC-Level-System-/assets/61707333/f688bc40-a1cb-46b9-8953-10d85bdeef92)
+![GmodPopular](https://github.com/Camperspro/World-Progression-NPC-Level-System-/assets/61707333/bd3b7073-030e-45df-8f71-fa6a17dfe773)
 
 HELP:
 ⓘ XP Tips: A higher combo (additional kills while the KTC is active) will generate more XP once the KTC has ended.\n Each player's seperate xp is combined into one for the world XP total. '??' LVL enemies count as 2 kills!
