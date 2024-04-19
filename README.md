@@ -1,7 +1,7 @@
 DESCRIPTION: My take on a NPC level system designed for Sandbox. Enhance your (FOR GMOD) NPC invasion experiences with every kill as they provide xp. Thus eventually leveling the world and NPC's spawned in it.
 
-CONSOLE COMMANDS:
-wp_party, wp_vs, wp_debug, wp_stop, wp_reset, wp_token+, wp_token-, \nwp_prestige+, wp_prestige-, wp_world+, wp_world-, wp_csettings, wp_settings
+![Untitled](https://github.com/Camperspro/World-Progression-NPC-Level-System-/assets/61707333/c2827bf1-ce75-450a-8092-7e847f0fb850)
+![Other Panels](https://github.com/Camperspro/World-Progression-NPC-Level-System-/assets/61707333/f688bc40-a1cb-46b9-8953-10d85bdeef92)
 
 HELP:
 ⓘ XP Tips: A higher combo (additional kills while the KTC is active) will generate more XP once the KTC has ended.\n Each player's seperate xp is combined into one for the world XP total. '??' LVL enemies count as 2 kills!
@@ -16,3 +16,6 @@ HELP:
 • In hard difficulty, combo time limit is ignored (no reduction when 60s+), but at the cost of stronger foes!
 ⓘ PVP / VS Mode Tips: (VS Mini Panel Mode recommended)
 With this mode toggled on aim for the top xp in the server while the world levels up as usual! Killing a player can allow you to steal their inactive kills to start a new timer with, or their current active combo kills!
+
+CONSOLE COMMANDS:
+wp_party, wp_vs, wp_debug, wp_stop, wp_reset, wp_token+, wp_token-, \nwp_prestige+, wp_prestige-, wp_world+, wp_world-, wp_csettings, wp_settings
