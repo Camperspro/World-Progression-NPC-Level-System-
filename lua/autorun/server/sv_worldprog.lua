@@ -19,6 +19,7 @@ local diffi = 2 -- 1=easy, 2=med/normal, 3 = hard
 local allParty = {}
 local PVPtop = {"ply1","ply2","ply3","ply4","ply5"}
 local ply = FindMetaTable("Player")
+local host
 
 
 --Npc related
@@ -95,6 +96,9 @@ hook.Add("Initalize", "WorldStart", function()
     for i, ply in ipairs(player.GetAll()) do
         if(ply:IsUserGroup("host")) then
          --Load prev world settings
+          diffi = tonumber(ply:GetVar("pwrlddiffi"))
+          ply:PrintMessage(HUD_PRINTCENTER,"World Settings Loaded.")
+          host = ply
         end
     end
 end)
@@ -115,7 +119,7 @@ hook.Add("PlayerInitialSpawn", "WorldProg/Load", function(ply)
     if(ply:GetParty() == nil) then
         ply:SaveParty("No Party")
     end
-    
+        
     ply:SetVar("pshC", false)
     ply:SetVar("HSK",0)
     ply:SetVar("Kills",0)
@@ -138,104 +142,173 @@ hook.Add("PlayerDisconnected", "PlayerLeave", function(ply)
 end)
 
 hook.Add("Think", "UpdateAllHud", function()
-    for i, ply in ipairs(player.GetAll()) do
-        if(timer.Exists("ComboChain" .. ply:UserID())) then
-            local time = timer.TimeLeft("ComboChain" .. ply:UserID())
-            SendPlyInfo(ply:GetCombo(), ply)
-            UpdatePlyHud(time,ply)
-        end
-        SendPlyXP(ply:GetXP(), ply)
-        if(ply:GetEyeTrace().Entity:IsNPC() and ply:GetEyeTrace().Entity:IsValid()) then
-            local cNPC = ply:GetEyeTrace().Entity
-            local npcTable = cNPC:GetTable()
-            if(npcTable == nil) then
-                
+        for i, ply in ipairs(player.GetAll()) do
+            if(timer.Exists("ComboChain" .. ply:UserID())) then
+                local time = timer.TimeLeft("ComboChain" .. ply:UserID())
+                SendPlyInfo(ply:GetCombo(), ply)
+                UpdatePlyHud(time,ply)
             end
-                local npcLvl = npcTable["npcLVL"]
-                SendnpcLvl(npcLvl,ply)
-        elseif(ply:GetEyeTrace().Entity:IsPlayer() and ply:GetEyeTrace().Entity:IsValid()) then
-            local cPly = ply:GetEyeTrace().Entity
-            if(timer.Exists("ComboChain" .. cPly:UserID())) then
-                local sk = cPly:GetKills()
-                local sc = cPly:GetCombo()
-                local stime = timer.TimeLeft("ComboChain" .. cPly:UserID())
-                SendComboInfo(sk,stime,sc,ply)
+            if(ply:GetEyeTrace().Entity:IsNextBot() and ply:GetEyeTrace().Entity:IsValid()) then
+                local cNPC = ply:GetEyeTrace().Entity
+                ply:PrintMessage(3,"HP: " .. cNPC:GetMaxHealth() .. "/" .. cNPC:Health())
+            elseif(ply:GetEyeTrace().Entity:IsNPC() and ply:GetEyeTrace().Entity:IsValid()) then
+                local cNPC = ply:GetEyeTrace().Entity
+                local npcTable = cNPC:GetTable()
+                if(npcTable == nil) then
+                    
+                end
+                timer.Simple(0.4,function()
+                    local npcLvl = npcTable["npcLVL"]
+                    local npcHealth = npcTable["npcHP"]
+                    
+                    if(ply:GetDBSetting() == true and ply:Crouching()) then
+                        ply:PrintMessage(3,"LVL: " .. npcLvl .. ", HP: " .. npcHealth .. "/" .. cNPC:Health())
+                    end
+                    SendnpcLvl(npcLvl,ply)
+                end)
+            elseif(ply:GetEyeTrace().Entity:IsPlayer() and ply:GetEyeTrace().Entity:IsValid()) then
+                local cPly = ply:GetEyeTrace().Entity
+                if(timer.Exists("ComboChain" .. cPly:UserID())) then
+                    local sk = cPly:GetKills()
+                    local sc = cPly:GetCombo()
+                    local stime = timer.TimeLeft("ComboChain" .. cPly:UserID())
+                    SendComboInfo(sk,stime,sc,ply)
+                end
+            else
+                --
             end
-        else
-            --
+            SendPlyXP(ply:GetXP(), ply)
         end
-    end
+    
 end)
 
 function NPCInit(ent)
-    if(ent:IsNPC() || ent:IsNextBot()) then
-      local maxLvl = worldL + 5 --Max NPC Level
-      local entLvl = 1 -- NPC Level
-      local hmulti = 1 -- entLVL health multip
-      if(worldP > 0) then --Prestige Multiplier
-         entLvl = 5 * worldP
-         maxLvl = entLvl + 5
-      end
-       --NPC Level Gen
-       if(worldL== 1) then --New/Reset World Cap
-            if(diffi == 2)then
-                entLvl = math.random(entLvl, maxLvl-3)
-            elseif(diffi == 3)then
-                entLvl = math.random(entLvl+1, maxLvl-1)
-            else
-                entLvl = math.random(worldL, maxLvl - 4) -- easy
+    if(IsValid(ent)) then
+        local maxLvl = worldL + 5 --Max NPC Level
+        local entLvl = 1 -- NPC Level
+        local hmulti = 1 -- entLVL health multip
+            local max = ent:GetMaxHealth()
+            if(worldP > 0) then --Prestige Multiplier
+               entLvl = 5 * worldP
+               maxLvl = entLvl + 5
             end
-       elseif(worldL > 2) then 
-            if(diffi == 2) then
-                entLvl = math.random(entLvl-1, maxLvl-1)
-            elseif(diffi == 3)then
-                entLvl = math.random(entLvl+1, maxLvl+2)
-            else
-                entLvl = math.random(worldL-2, maxLvl -2)
-            end
-       end
-       --Backup Level if the generation has a issue
-       if(entLvl <= 0 or entLvl == nil) then
-            entLvl = 1
-       end
-        --NPC Health Gen
-        if(entLvl >= maxLvl) then
-            hmulti = math.random(entLvl, entLvl+2)
-        elseif(entLvl > worldL and entLvl < maxLvl) then
-            hmulti = math.random(entLvl, entLvl+1)
-        else
-            hmulti = math.random(entLvl, entLvl-1)
-        end
-        --Difficulty Multiplier
-        if(diffi == 1)then
-            hmulti = hmulti * entLvl
-        elseif(diffi == 2)then
-            local nh = entLvl * 4
-            hmulti = hmulti * nh
-        elseif(diffi == 3) then
-            local nh = entLvl * 6
-            hmulti = hmulti * nh
-        end
+             --NPC Level Gen
+             if(worldL== 1) then --New/Reset World Cap
+                  if(diffi == 2)then
+                      entLvl = math.random(entLvl, maxLvl-3)
+                  elseif(diffi == 3)then
+                      entLvl = math.random(entLvl+1, maxLvl-1)
+                  else
+                      entLvl = math.random(worldL, maxLvl - 4) -- easy
+                  end
+             elseif(worldL > 2) then 
+                  if(diffi == 2) then
+                      entLvl = math.random(entLvl-1, maxLvl-1)
+                  elseif(diffi == 3)then
+                      entLvl = math.random(entLvl+1, maxLvl+2)
+                  else
+                      entLvl = math.random(worldL-2, maxLvl -2)
+                  end
+             end
+             --Backup Level if the generation has a issue
+             if(entLvl <= 0 or entLvl == nil) then
+                  entLvl = 1
+             end
+              --NPC Health Gen
+              if(entLvl >= maxLvl) then
+                  hmulti = math.random(entLvl, entLvl+2)
+              elseif(entLvl > worldL and entLvl < maxLvl) then
+                  hmulti = math.random(entLvl, entLvl+1)
+              else
+                  hmulti = math.random(entLvl, entLvl-1)
+              end
+              --Difficulty Multiplier
+              if(diffi == 1)then
+                  hmulti = hmulti * entLvl
+              elseif(diffi == 2)then
+                  local nh = entLvl * 4
+                  hmulti = hmulti * nh
+              elseif(diffi == 3) then
+                  local nh = entLvl * 6
+                  hmulti = hmulti * nh
+              end
+              hmulti = max + hmulti
+                ent:SetVar("npcLVL", entLvl)
+                ent:SetVar("npcHP", hmulti)
+                ent:SetVar("npcKills", 0)
+                ent:SetMaxHealth(hmulti)
+                ent:SetHealth(hmulti)
+    end
+end
 
-        if(ent:IsValid() and ent != NULL and !ent:IsPlayer()) then
-            local og = ent:GetMaxHealth()
-            hmulti = og + hmulti
-            ent:SetMaxHealth(hmulti)
-            ent:SetHealth(hmulti)
-            ent:SetVar("npcLVL", entLvl)
-            ent:SetVar("npcHP", hmulti)
-            ent:SetVar("npcKills", 0)
-        end
+function NextbotInit(ent)
+    if(IsValid(ent)) then
+        local maxLvl = worldL + 5 --Max NPC Level
+        local entLvl = 1 -- NPC Level
+        local hmulti = 1 -- entLVL health multip
+            local max = ent:GetMaxHealth()
+            if(worldP > 0) then --Prestige Multiplier
+               entLvl = 5 * worldP
+               maxLvl = entLvl + 5
+            end
+             --NPC Level Gen
+             if(worldL== 1) then --New/Reset World Cap
+                  if(diffi == 2)then
+                      entLvl = math.random(entLvl, maxLvl-3)
+                  elseif(diffi == 3)then
+                      entLvl = math.random(entLvl+1, maxLvl-1)
+                  else
+                      entLvl = math.random(worldL, maxLvl - 4) -- easy
+                  end
+             elseif(worldL > 2) then 
+                  if(diffi == 2) then
+                      entLvl = math.random(entLvl-1, maxLvl-1)
+                  elseif(diffi == 3)then
+                      entLvl = math.random(entLvl+1, maxLvl+2)
+                  else
+                      entLvl = math.random(worldL-2, maxLvl -2)
+                  end
+             end
+             --Backup Level if the generation has a issue
+             if(entLvl <= 0 or entLvl == nil) then
+                  entLvl = 1
+             end
+              --NPC Health Gen
+              if(entLvl >= maxLvl) then
+                  hmulti = math.random(entLvl, entLvl+2)
+              elseif(entLvl > worldL and entLvl < maxLvl) then
+                  hmulti = math.random(entLvl, entLvl+1)
+              else
+                  hmulti = math.random(entLvl, entLvl-1)
+              end
+              --Difficulty Multiplier
+              if(diffi == 1)then
+                  hmulti = hmulti * entLvl
+              elseif(diffi == 2)then
+                  local nh = entLvl * 4
+                  hmulti = hmulti * nh
+              elseif(diffi == 3) then
+                  local nh = entLvl * 6
+                  hmulti = hmulti * nh
+              end
+              hmulti = max + hmulti
+              ent.SpawnHealth = 50
     end
 end
 
 -- ON NPC SPAWN
-hook.Add( "OnEntityCreated", "NPCInitial",  function(ent) 
-    if (ent:IsNPC() and IsValid(ent)) then
-        NPCInit(ent)
-    else
-        return;
-    end
+hook.Add( "OnEntityCreated", "NPCInitial",  function(ent)
+    timer.Simple(0.3,function()
+        if(IsValid(ent) and !ent:IsPlayer()) then
+            if(ent:IsNextBot()) then
+                --NextbotInit(ent)
+            elseif (ent:IsNPC() and !ent:IsPlayer()) then
+                NPCInit(ent)
+            else
+                return;
+            end
+        end
+    end)
 end)
 
 --Player Death
@@ -390,6 +463,12 @@ end
 hook.Add("OnNPCKilled", "xpCheck", NPCchecker)
 
 function plyComboCheck(victim, killer, weapon)
+    local victimLevel = 1;
+    if(victim:GetVar("npcLVL") == nil) then
+        
+    else
+        victimLevel = victim:GetVar("npcLVL");
+    end
     if (killer:IsPlayer()) then -- if timer is active then kills will continue it.
         if(timer.Exists("ComboChain" .. killer:UserID())) then
             local time = timer.TimeLeft("ComboChain" .. killer:UserID())
@@ -852,7 +931,7 @@ function ComboMultiplySet(combo)
         chainM = 5.0
     end
     return chainM
-    //create switch case function in the future
+    --create switch case function in the future
 end
 
 --Player Prestige
@@ -1508,13 +1587,7 @@ function ply:GetXP()
 end
 
 function ply:WrldSave()
-    self:SetPData("pwrldLvl", worldL)
-    self:SetPData("pwrldXP", worldXP)
-    self:SetPData("pwrldXPT", wXPTotal)
-    self:SetPData("pwrldXPL", wXPLoss)
-    self:SetPData("pwrldCTime", comboTime)
-    self:SetPData("pwrlddiffi", diffi)
-    self:SetPData("pwrldp", worldP)
+    self:SetVar("pwrlddiffi", diffi)
 end
 
 function ply:WrldLevel()
@@ -1765,6 +1838,7 @@ net.Receive("WorldDiff", function()
     if(ply:IsAdmin())then
         if(sentdif == "Easy") then
             diffi = 1
+            ply:SetVar("pwrlddiffi",diffi)
             for i, plyx in ipairs(player.GetAll()) do
                 local text = "World Difficulty Has Been Changed To Easy."
                 plyx:PrintMessage(3,text)
@@ -1772,6 +1846,7 @@ net.Receive("WorldDiff", function()
             worldXP = worldL * 120
         elseif(sentdif == "Norm" or sentdif == "norm") then
             diffi = 2
+            ply:SetVar("pwrlddiffi",diffi)
             for i, plyx in ipairs(player.GetAll()) do
                 local text = "World Difficulty Has Been Changed To Normal."
                 plyx:PrintMessage(3,text)
@@ -1779,6 +1854,7 @@ net.Receive("WorldDiff", function()
             worldXP = worldL * 250
         elseif(sentdif == "Hard") then
             diffi = 3
+            ply:SetVar("pwrlddiffi",diffi)
             for i, plyx in ipairs(player.GetAll()) do
                 local text = "World Difficulty Has Been Changed To Hard."
                 plyx:PrintMessage(3,text)
@@ -1791,7 +1867,6 @@ net.Receive("WorldDiff", function()
     else
         ply:ChatPrint("You Must Be A Admin To Change Difficulty.")
     end
-
     updateWrldProg()
     sendWrldData()
 end)
@@ -2123,5 +2198,9 @@ concommand.Add("wp_combosys", function(ply)
             plyx:PrintMessage(3,txt2)
         end
     end
+end)
+
+concommand.Add("wp_ssave", function(ply)
+    ply:WrldSave()
 end)
 
