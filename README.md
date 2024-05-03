@@ -1,4 +1,4 @@
-DESCRIPTION: My take on a NPC level system designed for Sandbox. Enhance your (FOR GMOD) NPC invasion experiences with every kill as they provide xp. Thus eventually leveling the world and NPC's spawned in it.
+DESCRIPTION: My take on a NPC level system designed for Sandbox. Every kill as they provide xp. Thus eventually leveling the world and NPC's spawned in it. (For Garry's Mod https://store.steampowered.com/app/4000/Garrys_Mod/)
 
 ![Untitled](https://github.com/Camperspro/World-Progression-NPC-Level-System-/assets/61707333/c2827bf1-ce75-450a-8092-7e847f0fb850)
 ![Other Panels](https://github.com/Camperspro/World-Progression-NPC-Level-System-/assets/61707333/f688bc40-a1cb-46b9-8953-10d85bdeef92)
