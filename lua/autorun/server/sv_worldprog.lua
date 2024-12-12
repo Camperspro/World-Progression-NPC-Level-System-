@@ -5,7 +5,7 @@
 AddCSLuaFile("autorun/client/cl_worldprog.lua")
 
 local worldL = 1
-local worldXP = 250 --default 250
+local worldXP = 250 -- default 250
 local comboTime = 25
 local wXPLoss = -50
 local wXPTotal = 0
@@ -19,8 +19,7 @@ local diffi = 2 -- 1=easy, 2=med/normal, 3 = hard
 local allParty = {}
 local PVPtop = {"ply1","ply2","ply3","ply4","ply5"}
 local ply = FindMetaTable("Player")
-local host
-
+local nextbotTable = {}
 
 --Npc related
 local NPCHelp = true
@@ -98,7 +97,6 @@ hook.Add("Initalize", "WorldStart", function()
          --Load prev world settings
           diffi = tonumber(ply:GetVar("pwrlddiffi"))
           ply:PrintMessage(HUD_PRINTCENTER,"World Settings Loaded.")
-          host = ply
         end
     end
 end)
@@ -150,7 +148,15 @@ hook.Add("Think", "UpdateAllHud", function()
             end
             if(ply:GetEyeTrace().Entity:IsNextBot() and ply:GetEyeTrace().Entity:IsValid()) then
                 local cNPC = ply:GetEyeTrace().Entity
-                ply:PrintMessage(3,"HP: " .. cNPC:GetMaxHealth() .. "/" .. cNPC:Health())
+                local entID = cNPC:EntIndex()
+                timer.Simple(0.4,function()
+                    if(ply:GetDBSetting() == true and ply:Crouching()) then
+                        ply:PrintMessage(3,"LVL: " .. nextbotTable[entID] .. ", HP: " .. cNPC:Health() .. "/" .. cNPC:GetMaxHealth())
+                    end
+                    local npcLvl = nextbotTable[entID]
+                    SendnpcLvl(npcLvl,ply)
+                end)
+               
             elseif(ply:GetEyeTrace().Entity:IsNPC() and ply:GetEyeTrace().Entity:IsValid()) then
                 local cNPC = ply:GetEyeTrace().Entity
                 local npcTable = cNPC:GetTable()
@@ -162,7 +168,7 @@ hook.Add("Think", "UpdateAllHud", function()
                     local npcHealth = npcTable["npcHP"]
                     
                     if(ply:GetDBSetting() == true and ply:Crouching()) then
-                        ply:PrintMessage(3,"LVL: " .. npcLvl .. ", HP: " .. npcHealth .. "/" .. cNPC:Health())
+                        ply:PrintMessage(3,"LVL: " .. npcLvl .. ", HP: " .. cNPC:Health() .. "/" .. npcHealth)
                     end
                     SendnpcLvl(npcLvl,ply)
                 end)
@@ -273,6 +279,9 @@ function NextbotInit(ent)
              if(entLvl <= 0 or entLvl == nil) then
                   entLvl = 1
              end
+
+             local entID = ent:EntIndex()
+             nextbotTable[entID] = entLvl
               --NPC Health Gen
               if(entLvl >= maxLvl) then
                   hmulti = math.random(entLvl, entLvl+2)
@@ -292,7 +301,8 @@ function NextbotInit(ent)
                   hmulti = hmulti * nh
               end
               hmulti = max + hmulti
-              ent.SpawnHealth = 50
+              ent:SetMaxHealth(hmulti)
+              ent:SetHealth(hmulti)
     end
 end
 
@@ -301,7 +311,7 @@ hook.Add( "OnEntityCreated", "NPCInitial",  function(ent)
     timer.Simple(0.3,function()
         if(IsValid(ent) and !ent:IsPlayer()) then
             if(ent:IsNextBot()) then
-                --NextbotInit(ent)
+                NextbotInit(ent)
             elseif (ent:IsNPC() and !ent:IsPlayer()) then
                 NPCInit(ent)
             else
@@ -484,7 +494,15 @@ function plyComboCheck(victim, killer, weapon)
             else
                 timer.Adjust("ComboChain" .. killer:UserID(), time + 1.5)
             end
-            if(victim:GetVar("npcLVL") >= worldL+5) then
+            if(victim:IsNextBot()) then
+                local entID = victim:EntIndex()
+                local npcLvl = nextbotTable[entID]
+                if(npcLvl >= worldL+5) then
+                    timer.Adjust("ComboChain" .. killer:UserID(), time + 3.5)
+                elseif(npcLvl > worldL && (npcLvl < worldL +5))then
+                    timer.Adjust("ComboChain" .. killer:UserID(), time + 2)
+                end
+            elseif(victim:GetVar("npcLVL") >= worldL+5) then
                 timer.Adjust("ComboChain" .. killer:UserID(), time + 3.5)
             elseif(victim:GetVar("npcLVL") > worldL && (victim:GetVar("npcLVL") < worldL +5)) then
                 timer.Adjust("ComboChain" .. killer:UserID(), time + 2)
@@ -496,7 +514,18 @@ function plyComboCheck(victim, killer, weapon)
             --Make our Combo timer
             killer:SetKills(1)
             timer.Create("ComboChain" .. killer:UserID(), comboTime+1.5, 1, function() XpCal(killer) end)
-            if(victim:GetVar("npcLVL") >= worldL+5) then
+            if(victim:IsNextBot()) then
+                local entID = victim:EntIndex()
+                local npcLvl = nextbotTable[entID]
+                if(npcLvl >= worldL+5) then
+                    timer.Create("ComboChain" .. killer:UserID(), comboTime+3.5, 1, function() XpCal(killer) end)
+                elseif(npcLvl > worldL && (npcLvl < worldL +5)) then
+                    timer.Create("ComboChain" .. killer:UserID(), comboTime+2, 1, function() XpCal(killer) end)
+                else
+                    timer.Create("ComboChain" .. killer:UserID(), comboTime+1.5, 1, function() XpCal(killer) end)
+                end
+
+            elseif(victim:GetVar("npcLVL") >= worldL+5) then
                 timer.Create("ComboChain" .. killer:UserID(), comboTime+3.5, 1, function() XpCal(killer) end)
             elseif(victim:GetVar("npcLVL") > worldL && (victim:GetVar("npcLVL") < worldL +5)) then
                 timer.Create("ComboChain" .. killer:UserID(), comboTime+2, 1, function() XpCal(killer) end)
@@ -565,21 +594,15 @@ function plyComboCheck(victim, killer, weapon)
             else
                 nkills = nkills +1
             end
-            killer:SetVar("npcKills", nkills)
+            killer:SetVar("npcKills", nkills) --appearently a bug where leveled up NPC gets set 3 health max
             if(nkills > kLvl) then
                 kLvl = kLvl + 1
                 npcTable["npcLVL"] = kLvl
                 killer:SetVar("npcLvl", kLvl)
                 killer:SetVar("npcKills", 0)
-                local hmulti = 1
-                if(kLvl >= worldL+5) then
-                    hmulti = math.random(kLvl, kLvl+2)
-                elseif(kLvl > worldL and kLvl < worldL+5) then
-                    hmulti = math.random(kLvl, kLvl+1)
-                else
-                    hmulti = math.random(kLvl, kLvl-1)
-                end
-                killer:SetMaxHealth(hmulti)
+               
+                killer:SetMaxHealth(killer:GetMaxHealth()+100)
+                killer:SetHealth(killer:GetMaxHealth())
                 PrintMessage(HUD_PRINTTALK, killer:GetName() .. " is now LVL " .. killer:GetVar("npcLvl") .. "!")
             end
         end
@@ -2201,6 +2224,22 @@ concommand.Add("wp_combosys", function(ply)
 end)
 
 concommand.Add("wp_ssave", function(ply)
-    ply:WrldSave()
+   if(diffi == 1){
+        file.Write("WPSettings.txt", "Difficulty=Easy")
+   }
+   else if(diffi == 2){
+        file.Write("WPSettings.txt", "Difficulty=Normal")
+   }
+    else
+    {
+        file.Write("WPSettings.txt", "Difficulty=Hard")
+    }
+
+    if(comboSystem)then
+        file.Write("WPSettings.txt", "ComboSystem=True")
+    else
+        file.Write("WPSettings.txt", "ComboSystem=False")
+    end
+
 end)
 
