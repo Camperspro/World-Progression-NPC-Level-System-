@@ -43,6 +43,26 @@ local worldD = 2
 local PVPtop = {}
 local curKills = 0
 local comboSetting = true
+local worldHudX = ScrW() / 2
+local worldHudY = ScrH() / 2
+
+hook.Add("Initalize", "cWorldStart", function()
+  if(file.Exists("worldprog_client.txt", "DATA")) then
+    local userSettings = file.Read("worldprog_client.txt", "DATA")
+
+    newWinX = string.find(userSettings,"winfoX = ")
+    newWinY = string.find(userSettings,"winfoY = ")
+    --newComboX = string.find(userSettings,"comboX = ")
+    --newComboY = string.find(userSettings,"comboY = ")
+  
+    winX = string.sub(userSettings, newWinX, newWinY)
+    worldHudX = tonumber(string.match(winX, "%d+"))
+  
+    winY = string.sub(userSettings, newWinY, newComboX)
+    worldHudY = tonumber(string.match(winY, "%d+"))
+    drawWorldHUD()
+  end
+end)
 
 net.Receive("PresTok", function()
   local tokens = net.ReadInt(32)
@@ -95,7 +115,6 @@ end)
 
 net.Receive("WPRESTIGE", function()
   wPr = net.ReadInt(32)
-  WHudRefresh()
 end)
 
 net.Receive("PartyInfo", function()
@@ -118,7 +137,19 @@ net.Receive("PartyS", function()
   end
 end)
 
-hook.Add("OnScreenSizeChanged", "ReUpdate", function (oldWidth, oldHeight)
+function drawWorldHUD()
+  draw.RoundedBox(0, worldHudX - 80, worldHudY + 585,146,20,Color(11,11,11,172))
+      draw.RoundedBox(0, worldHudX - 80, worldHudY + 585,146 * (total / wXP) ,20,Color(37,181,56,207))
+      draw.DrawText("World Level: " .. lvl, "ChatFont", worldHudX - 80, worldHudY + 560, Color(255,255,255))
+      draw.DrawText(total .. "/" .. wXP .. "xp", "HudHintTextLarge", worldHudX - 38, worldHudY + 586, Color(254,254,121))
+
+      if(wPr > 0) then
+        draw.DrawText("Prestige: " .. wPr, "ChatFont", worldHudX - 58, worldHudY + 615, Color(0,0,0))
+        draw.DrawText("Prestige: " .. wPr, "ChatFont", worldHudX - 58, worldHudY + 615, Color(253,57,8,177))
+      end
+end
+
+--[[ hook.Add("OnScreenSizeChanged", "ReUpdate", function (oldWidth, oldHeight)
   if(oldHeight != ScrH() and oldWidth != ScrW()) then
     if(ScrH() >= 2560 and ScrW() >= 1440)then
       --MY RESO
@@ -143,45 +174,12 @@ hook.Add("OnScreenSizeChanged", "ReUpdate", function (oldWidth, oldHeight)
        end
     end
   end
-end)
+end) ]]
 
 --WORLD INFO HUD
 hook.Add("HUDPaint", "HUDPaint_XP", function ()
   if(wrldinfoUI == true) then
-    if(ScrH() >= 2560 and ScrW() >= 1440)then
-      --Up Next RESO
-      draw.RoundedBox(0, ScrW() / 2 - 80, ScrH() / 2 + 585,146,20,Color(11,11,11,172))
-      draw.RoundedBox(0, ScrW() / 2 - 80, ScrH() / 2 + 585,146 * (total / wXP) ,20,Color(37,181,56,207))
-      draw.DrawText("World Level: " .. lvl, "ChatFont", ScrW() / 2 - 80, ScrH() / 2 + 560, Color(255,255,255))
-      draw.DrawText(total .. "/" .. wXP .. "xp", "HudHintTextLarge", ScrW() / 2 - 38, ScrH() / 2 + 586, Color(254,254,121))
-
-      if(wPr > 0) then
-        draw.DrawText("Prestige: " .. wPr, "ChatFont", ScrW() / 2 - 58, ScrH() / 2 + 615, Color(0,0,0))
-        draw.DrawText("Prestige: " .. wPr, "ChatFont", ScrW() / 2 - 58, ScrH() / 2 + 615, Color(253,57,8,177))
-      end
-    elseif(ScrH() <= 1920 and ScrW() <= 1280) then
-      --Normal RESO
-      draw.RoundedBox(0, ScrW() / 2 - 80, ScrH() / 2 + 385,146,20,Color(11,11,11,172))
-      draw.RoundedBox(0, ScrW() / 2 - 80, ScrH() / 2 + 385,146 * (total / wXP) ,20,Color(37,181,56,207))
-      draw.DrawText("World Level: " .. lvl, "ChatFont", ScrW() / 2 - 80, ScrH() / 2 + 360, Color(255,255,255))
-      draw.DrawText(total .. "/" .. wXP .. "xp", "HudHintTextLarge", ScrW() / 2 - 38, ScrH() / 2 + 386, Color(254,254,121))
-
-      if(wPr > 0) then
-        draw.DrawText("Prestige: " .. wPr, "ChatFont", ScrW() / 2 - 58, ScrH() / 2 + 615, Color(0,0,0))
-        draw.DrawText("Prestige: " .. wPr, "ChatFont", ScrW() / 2 - 58, ScrH() / 2 + 615, Color(253,57,8,177))
-      end
-    else
-       --BOI RESO
-       draw.RoundedBox(0, ScrW() / 2 - 80, ScrH() / 2 + 585,146,20,Color(11,11,11,172))
-       draw.RoundedBox(0, ScrW() / 2 - 80, ScrH() / 2 + 585,146 * (total / wXP) ,20,Color(37,181,56,207))
-       draw.DrawText("World Level: " .. lvl, "ChatFont", ScrW() / 2 - 80, ScrH() / 2 + 560, Color(255,255,255))
-       draw.DrawText(total .. "/" .. wXP .. "xp", "HudHintTextLarge", ScrW() / 2 - 38, ScrH() / 2 + 586, Color(254,254,121))
-
-       if(wPr > 0) then
-        draw.DrawText("Prestige: " .. wPr, "ChatFont", ScrW() / 2 - 58, ScrH() / 2 + 615, Color(0,0,0))
-        draw.DrawText("Prestige: " .. wPr, "ChatFont", ScrW() / 2 - 58, ScrH() / 2 + 615, Color(253,57,8,177))
-       end
-    end
+    drawWorldHUD()
   end
 end)
 
@@ -400,31 +398,6 @@ function RemoveCHud()
   hook.Remove("HUDPaint", "HUDPaint_COMBO")
 end
 
-function WHudRefresh()
-  if(ScrH() >= 2560 and ScrW() >= 1440)then
-    --MY RESO
-    draw.DrawText("World Level: " .. lvl, "ChatFont", ScrW() / 2 - 80, ScrH() / 2 + 560, Color(255,255,255))
-    draw.DrawText(total .. "/" .. wXP .. "xp", "HudHintTextLarge", ScrW() / 2 - 36, ScrH() / 2 + 580, Color(255,242,104))
-    if(wPr > 0) then
-      draw.DrawText("Prestige: " .. wPr, "ChatFont", ScrW() / 2 - 86, ScrH() / 2 + 595, Color(255,166,12,177))
-    end
-  elseif(ScrH() <= 1920 and ScrW() <= 1280) then
-    --Normal RESO
-    draw.DrawText("World Level: " .. lvl, "ChatFont", ScrW() / 2 - 80, ScrH() / 2 + 360, Color(255,255,255))
-    draw.DrawText(total .. "/" .. wXP .. "xp", "HudHintTextLarge", ScrW() / 2 - 36, ScrH() / 2 + 380, Color(255,242,104))
-    if(wPr > 0) then
-      draw.DrawText("Prestige: " .. wPr, "ChatFont", ScrW() / 2 - 80, ScrH() / 2 + 395, Color(255,166,12,177))
-    end
-  else
-     --BOI RESO
-     draw.DrawText("World Level: " .. lvl, "ChatFont", ScrW() / 2 - 80, ScrH() / 2 + 560, Color(255,255,255))
-     draw.DrawText(total .. "/" .. wXP .. "xp", "HudHintTextLarge", ScrW() / 2 - 36, ScrH() / 2 + 580, Color(255,242,104))
-     if(wPr > 0) then
-       draw.DrawText("Prestige: " .. wPr, "ChatFont", ScrW() / 2 - 86, ScrH() / 2 + 595, Color(255,166,12,177))
-     end
-  end
-end
-
 net.Receive("PartyUI", function()
    PartyUIPanel()
 end)
@@ -511,7 +484,7 @@ function PartyUIPanel()
     --MAIN FRAME
     local PFrame = vgui.Create("DFrame")
     PFrame:SetPos(scrw / 2 - 60,10)
-    PFrame:SetSize(390,500)
+    PFrame:SetSize(395,500)
     PFrame:SetTitle("World Prog. Panel (v1.0b)")
     PFrame:SetVisible(true)
     PFrame:SetDraggable(true)
@@ -593,10 +566,10 @@ function PartyUIPanel()
     end
 
     local prestigeShopB = vgui.Create("DButton", PFrame)
-    prestigeShopB:SetText("Prestige Shop")
+    prestigeShopB:SetText("Prestige Panel")
     prestigeShopB:SetTextColor(Color(255,255,255))
     prestigeShopB:SetPos(30,160)
-    prestigeShopB:SetSize(100,30)
+    prestigeShopB:SetSize(105,30)
     prestigeShopB.Paint = function(self, w, h)
       draw.RoundedBox(0,0,0,w,h, Color(93,183,231))
     end
@@ -1891,7 +1864,7 @@ function Csettingpanel()
         fp = net.ReadEntity()
           local CSFrame = vgui.Create("DFrame")
           CSFrame:SetPos(ScrW() / 2,ScrH() / 2)
-          CSFrame:SetSize(300,250)
+          CSFrame:SetSize(310,320)
           CSFrame:SetTitle("Client Settings")
           CSFrame:SetVisible(true)
           CSFrame:SetDraggable(true)
@@ -1911,7 +1884,7 @@ function Csettingpanel()
         cb1.OnChange = function(chkbox)
           local wrldinfoUIx = cb1:GetChecked()
           wrldinfoUI = wrldinfoUIx
-          WHudRefresh()
+          drawWorldHUD()
         end
         local cb2 = CSFrame:Add("DCheckBoxLabel")
         cb2:SetPos(10,80)
@@ -1957,6 +1930,38 @@ function Csettingpanel()
           net.WriteBool(plyPM)
           net.WriteEntity(fp)
           net.SendToServer()
+        end
+
+        local cbx = CSFrame:Add("DNumSlider")
+        cbx:SetPos(10,210)
+        cbx:SetSize(200,20)
+        cbx:SetText("World UI X")
+        cbx:SetValue(worldHudX)
+        cbx:SetDefaultValue(ScrW() / 2)
+        cbx:SetMin(-500)
+        cbx:SetMax(3000)
+        cbx:SetDecimals(0)
+        cbx:SizeToContents()
+        cbx.OnValueChanged = function(val)
+          local wrldinfoUIx = cbx:GetValue()
+          worldHudX = math.Round(wrldinfoUIx,0)
+          drawWorldHUD()
+        end
+
+        local cby = CSFrame:Add("DNumSlider")
+        cby:SetPos(10,240)
+        cby:SetSize(200,20)
+        cby:SetText("World UI Y")
+        cby:SetValue(worldHudY)
+        cby:SetDefaultValue(ScrH() / 2)
+        cby:SetMin(-3000)
+        cby:SetMax(3000)
+        cby:SetDecimals(0)
+        --cby:SizeToContents()
+        cby.OnValueChanged = function(val)
+          local wrldinfoUIy = cby:GetValue()
+          worldHudY = math.Round(wrldinfoUIy,0)
+          drawWorldHUD()
         end
 
       end)
@@ -2169,6 +2174,111 @@ concommand.Add("wp_load", function()
   net.SendToServer()
 end)
 
+concommand.Add("wpc_save", function()
+  local fp = LocalPlayer()
+  local newConfig = file.Read("worldprog_client.txt", "DATA")
+  if(file.Exists("worldprog_client.txt", "DATA")) then
+    if(string.find(newConfig, "winfoX = ") == nil) then
+      if(string.find(newConfig, "worldL = ") != nil) then
+        newWli = string.find(newConfig,"worldL")
+        newWxpi = string.find(newConfig,"worldXP")
+        newWxpti = string.find(newConfig,"wXPTotal")
+        newWpi = string.find(newConfig,"worldP")
+        newWpiEnd = string.find(newConfig,";")
+  
+        newWorldL = string.sub(newConfig, newWli, newWxpi)
+        newWorldXP = string.sub(newConfig, newWxpi+1, newWxpti)
+        newWorldXPT = string.sub(newConfig, newWxpti+1, newWpi)
+        newWorldP = string.sub(newConfig, newWpi+1, newWpiEnd)
+
+        newConfig = ""
+        --newConfig = newConfig .. "comboX = " .. worldHudX .. "\n"
+        --newConfig = newConfig .. "comboY = " .. worldHudY .. "\n"
+        newConfig = newConfig .. "winfoX = " .. worldHudX .. "\n"
+        newConfig = newConfig .. "winfoY = " .. worldHudY .. "|\n"
+
+        newConfig = newConfig .. newWorldL
+        newConfig = newConfig .. newWorldXP
+        newConfig = newConfig .. newWorldXPT
+        newConfig = newConfig .. newWorldP
+        file.Write("worldprog_client.txt", newConfig)
+      else
+        --Make a net proccess that gets hud pos info and sends it
+        newConfig = ""
+        --newConfig = newConfig .. "comboX = " .. worldHudX .. "\n"
+        --newConfig = newConfig .. "comboY = " .. worldHudY .. "\n"
+        newConfig = newConfig .. "winfoX = " .. worldHudX .. "\n"
+        newConfig = newConfig .. "winfoY = " .. worldHudY .. "|\n"
+      end
+    else
+       if(string.find(newConfig, "worldL = ") != nil) then
+        newWli = string.find(newConfig,"worldL")
+        newWxpi = string.find(newConfig,"worldXP")
+        newWxpti = string.find(newConfig,"wXPTotal")
+        newWpi = string.find(newConfig,"worldP")
+        newWpiEnd = string.find(newConfig,";")
+  
+        newWorldL = string.sub(newConfig, newWli, newWxpi)
+        newWorldXP = string.sub(newConfig, newWxpi+1, newWxpti)
+        newWorldXPT = string.sub(newConfig, newWxpti+1, newWpi)
+        newWorldP = string.sub(newConfig, newWpi+1, newWpiEnd)
+
+        newConfig = ""
+        --newConfig = newConfig .. "comboX = " .. worldHudX .. "\n"
+        --newConfig = newConfig .. "comboY = " .. worldHudY .. "\n"
+        newConfig = newConfig .. "winfoX = " .. worldHudX .. "\n"
+        newConfig = newConfig .. "winfoY = " .. worldHudY .. "|\n"
+
+        newConfig = newConfig .. newWorldL
+        newConfig = newConfig .. newWorldXP
+        newConfig = newConfig .. newWorldXPT
+        newConfig = newConfig .. newWorldP
+        file.Write("worldprog_client.txt", newConfig)
+      else
+        --Make a net proccess that gets hud pos info and sends it
+        newConfig = ""
+        --newConfig = newConfig .. "comboX = " .. worldHudX .. "\n"
+        --newConfig = newConfig .. "comboY = " .. worldHudY .. "\n"
+        newConfig = newConfig .. "winfoX = " .. worldHudX .. "\n"
+        newConfig = newConfig .. "winfoY = " .. worldHudY .. "|\n"
+      end
+
+      file.Write("worldprog_client.txt", newConfig)
+    end
+    fp:ChatPrint("Config Updated")
+  else
+    file.Write("worldprog_client.txt", newConfig)
+    fp:ChatPrint("Config Created")
+  end
+  
+end)
+
+concommand.Add("wpc_load", function()
+  local fp = LocalPlayer()
+  if(file.Exists("worldprog_client.txt", "DATA")) then
+    fp:ChatPrint("Config Found.")
+    local userSettings = file.Read("worldprog_client.txt", "DATA")
+
+    if(string.find(userSettings, "winfoX = ") != nil) then
+      newWinX = string.find(userSettings,"winfoX = ")
+      newWinY = string.find(userSettings,"winfoY = ")
+      newComboX = string.find(userSettings,"comboX = ")
+      newComboY = string.find(userSettings,"comboY = ")
+
+      winX = string.sub(userSettings, newWinX, newWinY)
+      worldHudX = tonumber(string.match(winX, "%d+"))
+
+      winY = string.sub(userSettings, newWinY, newComboX)
+      worldHudY = tonumber(string.match(winY, "%d+"))
+      fp:ChatPrint("Config Loaded.")
+    else
+      fp:ChatPrint("No Hud Config Data Found.")
+    end
+  else
+    fp:ChatPrint("No Config Found.")
+  end
+end)
+
 concommand.Add("wp_reseths", function()
   chainHS = 0
   timeHS = 0
@@ -2176,19 +2286,31 @@ concommand.Add("wp_reseths", function()
 end)
 
 hook.Add("PopulateToolMenu","WorldProgSettings", function()
-  spawnmenu.AddToolMenuOption("Utilities","World Progression","WPC_Settings","#Client", "", "", function(panel)
-    local txt = "can also bind 'key' worldprogp"
+
+  spawnmenu.AddToolMenuOption("Options","World Progression","WP_General","#PLAYER", "", "", function(panel)
+    local txt = "bind World Prog to 'worldprogp' "
     panel:Add(txt)
-    panel:Button("⚠ End Combo Timer ⚠", "wp_stop")
     panel:Button("World Progression Panel", "openworldui")
     panel:Button("Prestige Panel", "wp_ppanel")
-    panel:Button("⚙ Client Settings ⚙", "wp_csettings")
-    panel:Button("ⓘ Help ⓘ", "wp_help")
+    --Add mini panel button(s)
+    --panel:Button("Mini Panel", "wp_ppanel")
+    --panel:Button("PVP Panel", "wp_ppanel")
     panel:Button("ⓘ Close Mini Panel(s) ⓘ", "wp_mc")
+    panel:Button("ⓘ Help ⓘ", "wp_help")
+    panel:Button("⚠ End Combo Timer ⚠", "wp_stop")
     panel:Button("⚠ Reset Your HighScores ⚠", "wp_reseths")
   end)
 
+  spawnmenu.AddToolMenuOption("Utilities","World Progression","WPC_Settings","#Client", "", "", function(panel)
+    panel:Button("Load Config", "wpc_load")
+    panel:Button("Save Config", "wpc_save") -- Or have the config auto save on panel close, and replace this as a default config button
+    panel:Button("⚙ Client Settings ⚙", "wp_csettings")
+    panel:Button("Default Settings", "wpc_default")
+  end)
+
   spawnmenu.AddToolMenuOption("Utilities","World Progression","WPS_Settings","#Server", "", "", function(panel)
+    panel:Button("Load World", "wp_load")
+    panel:Button("Save World", "wp_save")
     panel:Button("↑  Increase Level ↑ ", "wp_world+")
     panel:Button("↓  Decrease Level ↓ ", "wp_world-")
     panel:Button("↑  Increase Prestige ↑ ", "wp_prestige+")
@@ -2196,7 +2318,7 @@ hook.Add("PopulateToolMenu","WorldProgSettings", function()
     panel:Button("↑  Add Token ↑ ", "wp_token+")
     panel:Button("↓  Remove Token ↓ ", "wp_token-")
     panel:Button("⚙ Server Settings ⚙", "wp_settings")
-    panel:Button("⚠ Reset the World ⚠", "wp_reset")
+    panel:Button("⚠ Reset World ⚠", "wp_reset")
   end)
 end)
 

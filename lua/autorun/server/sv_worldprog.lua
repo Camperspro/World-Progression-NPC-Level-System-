@@ -17,7 +17,11 @@ local plyShare = false
 local comboSystem = true
 local diffi = 2 -- 1=easy, 2=med/normal, 3 = hard
 local allParty = {}
+local txtTb = {}
 local PVPtop = {"ply1","ply2","ply3","ply4","ply5"}
+local wSettings = {"ply1","ply2","ply3","ply4","ply5"}
+local wSSettings = {"worldL","worldXP","wXPTotal","worldP"}
+local userSettings
 local ply = FindMetaTable("Player")
 local nextbotTable = {}
 
@@ -74,6 +78,8 @@ if(SERVER) then
     util.AddNetworkString("wpbind")
     util.AddNetworkString("SaveWrld")
     util.AddNetworkString("LoadWrld")
+    util.AddNetworkString("SaveConfig")
+    util.AddNetworkString("LoadConfig")
     util.AddNetworkString("resetSkills")
 end
 
@@ -90,13 +96,14 @@ function ArrayContains(array, value)
     return truth
 end
 
---Prev Settings Startup
+--Load Host Settings On Startup
 hook.Add("Initalize", "WorldStart", function()
     for i, ply in ipairs(player.GetAll()) do
         if(ply:IsUserGroup("host")) then
-         --Load prev world settings
-          diffi = tonumber(ply:GetVar("pwrlddiffi"))
+         
           ply:PrintMessage(HUD_PRINTCENTER,"World Settings Loaded.")
+        else
+            --Load client settings
         end
     end
 end)
@@ -1619,6 +1626,15 @@ function ply:WrldLevel()
     end)
 end
 
+function splitString(userStr, split)
+    local txt = {}
+    for str in string.gmatch(userStr, "([^" .. split .. "]+)") do
+        table.insert(txt,str)
+    end
+
+    return txt
+end
+
 net.Receive("PartyCName", function()
     local pname = net.ReadString()
     local ply = net.ReadEntity()
@@ -1734,11 +1750,92 @@ net.Receive("npcHelp", function()
     end
 end)
 
+net.Receive("SaveConfig", function()
+   
+end)
+
+net.Receive("LoadConfig", function()
+    userSettings = file.Read("worldprog_client.txt", "DATA")
+       if(userSettings == nil) then
+            ply:ChatPrint("World Save Not Found or Didn't Load Properly.")
+        else
+           
+            newWli = string.find(userSettings,"worldL = ")
+            newWxpi = string.find(userSettings,"worldXP = ")
+            newWxpti = string.find(userSettings,"wXPTotal = ")
+            newWpi = string.find(userSettings,"worldP = ")
+
+            newWorldL = string.sub(userSettings, newWli, newWxpi)
+            worldL = tonumber(string.match(newWorldL, "%d+"))
+
+            newWorldXP = string.sub(userSettings, newWxpi, newWxpti)
+            worldXP = tonumber(string.match(newWorldXP, "%d+"))
+
+            newWorldXPT = string.sub(userSettings, newWxpti, newWpi)
+            wXPTotal = tonumber(string.match(newWorldXPT, "%d+"))
+
+            newWorldP = string.sub(userSettings, newWpi, string.find(userSettings,";"))
+            worldP = tonumber(string.match(newWorldP, "%d+"))
+        end
+    curPly:ChatPrint("World Updated.")
+end)
+
 net.Receive("SaveWrld", function()
     local admin = net.ReadEntity()
     if(admin:IsAdmin()) then
-        admin:WrldSave()
-        admin:ChatPrint("World Data saved.")
+        if(file.Exists("worldprog_client.txt", "DATA")) then
+            admin:ChatPrint("World Data Found.")
+            userSettings = file.Read("worldprog_client.txt", "DATA")
+            if(string.find(userSettings, "worldL = ") == nil) then
+                local newSave = ""
+                newSave = newSave .. "worldL = " .. worldL .. "\n"
+                newSave = newSave .. "worldXP = " .. worldXP .. "\n"
+                newSave = newSave .. "wXPTotal = " .. wXPTotal .. "\n" --Make this current XP all players have and load it next time for save
+                newSave = newSave .. "worldP = " .. worldP .. ";\n"
+                file.Append("worldprog_client.txt", newSave)
+                admin:ChatPrint("World Data saved.")
+            else
+                local newSave = ""
+                if(string.find(userSettings, "winfoX = ") != nil) then
+                    newSave = newSave .. "worldL = " .. worldL .. "\n"
+                    newSave = newSave .. "worldXP = " .. worldXP .. "\n"
+                    newSave = newSave .. "wXPTotal = " .. wXPTotal .. "\n" --Make this current XP all players have and load it next time for save
+                    newSave = newSave .. "worldP = " .. worldP .. ";\n"
+                    --local found = {}
+                    --oldWli = string.find(userSettings,"worldL = ")
+                    --oldWxpi = string.find(userSettings,"worldXP = ")
+
+                    winfoX = string.find(userSettings,"winfoX = ")
+                    winfoY = string.find(userSettings,"winfoY = ")
+
+                    --newWorldL = string.sub(userSettings, newWli, newWxpi)
+                    --newWorldXP = string.sub(userSettings, newWxpi, newWxpti)
+
+                    prevwX = string.sub(userSettings, winfoX, winfoY)
+                    prevwY = string.sub(userSettings, winfoY, string.find(userSettings,"|"))
+                    newSave = newSave .. prevwX .. "\n"
+                    newSave = newSave .. prevwY .. "\n"
+            
+                else
+                    newSave = newSave .. "worldL = " .. worldL .. "\n"
+                    newSave = newSave .. "worldXP = " .. worldXP .. "\n"
+                    newSave = newSave .. "wXPTotal = " .. wXPTotal .. "\n" --Make this current XP all players have and load it next time for save
+                    newSave = newSave .. "worldP = " .. worldP .. ";\n"
+                end
+        
+                file.Write("worldprog_client.txt", newSave)
+                admin:ChatPrint("World Data Updated")
+            end
+          else
+            admin:ChatPrint("World Data Not Found.")
+            local newSave = ""
+            newSave = newSave .. "worldL = " .. worldL .. "\n"
+            newSave = newSave .. "worldXP = " .. worldXP .. "\n"
+            newSave = newSave .. "wXPTotal = " .. wXPTotal .. "\n" --Make this current XP all players have and load it next time for save
+            newSave = newSave .. "worldP = " .. worldP .. ";\n"
+            file.Write("worldprog_client.txt", newSave)
+            admin:ChatPrint("World Data saved.")
+        end
     else
         admin:ChatPrint("you cannot save this world unless you're a admin.")
     end
@@ -1747,27 +1844,50 @@ end)
 net.Receive("LoadWrld", function()
     local admin = net.ReadEntity()
     if(admin:IsAdmin()) then
-        local x = tonumber(admin:GetVar("pwrldLvl", worldL))
-        worldL = x
-        local x1 = tonumber(admin:GetVar("pwrldXP",worldXP))
-        worldXP = x1
-        local x2 = tonumber(admin:GetVar("pwrldXPT",wXPTotal))
-        wXPTotal = x2
-        local x3 = tonumber(admin:GetVar("pwrldXPL",wXPLoss))
-        wXPLoss = x3
-        local x4 = tonumber(admin:GetVar("pwrldCTime",comboTime))
-        comboTime = x4
-        local x5 = admin:GetVar("pwrlddiffi",diffi)
-        diffi = x5
-        local x6 = tonumber(admin:GetVar("pwrldp",worldP))
-        worldP = x6
+        if(file.Exists("worldprog_client.txt", "DATA")) then
+            userSettings = file.Read("worldprog_client.txt", "DATA")
+            if(string.find(userSettings, "worldL = ") != nil) then
+                newWli = string.find(userSettings,"worldL = ")
+                newWxpi = string.find(userSettings,"worldXP = ")
+                newWxpti = string.find(userSettings,"wXPTotal = ")
+                newWpi = string.find(userSettings,"worldP = ")
+    
+                newWorldL = string.sub(userSettings, newWli, newWxpi)
+                worldL = tonumber(string.match(newWorldL, "%d+"))
+    
+                newWorldXP = string.sub(userSettings, newWxpi, newWxpti)
+                worldXP = tonumber(string.match(newWorldXP, "%d+"))
+    
+                newWorldXPT = string.sub(userSettings, newWxpti, newWpi)
+                wXPTotal = tonumber(string.match(newWorldXPT, "%d+"))
+    
+                newWpiEnd = string.find(userSettings,";")
+                newWorldP = string.sub(userSettings, newWpi, newWpiEnd)
+                worldP = tonumber(string.match(newWorldP, "%d+"))
+                if (worldP == nil) then 
+                    worldP = 0
+                end
 
-        for i, ply in ipairs(player.GetAll()) do
-            local text = admin:GetName() .. " has loaded thier world save."
-            ply:ChatPrint(text)
+                admin:ChatPrint("World Level " ..tostring(worldL))
+                admin:ChatPrint("World XP " ..tostring(worldXP))
+                admin:ChatPrint("World XPT " ..tostring(wXPTotal)) --Make this current XP all players have and load it next time for save
+                admin:ChatPrint("Prestige " .. tostring(worldP))
+
+            else
+                admin:ChatPrint("No World Data Found.")
+            end
+
+                for i, ply in ipairs(player.GetAll()) do
+                    local text = "World Updated."
+                    ply:ChatPrint(text)
+                end
+
+             updateWrldProg()
+             sendWrldData()
+        else
+            admin:ChatPrint("No Config Found.")
         end
-        updateWrldProg()
-        sendWrldData()
+      
     else
         admin:ChatPrint("you cannot load a world unless you're a admin.")
     end
@@ -2224,22 +2344,6 @@ concommand.Add("wp_combosys", function(ply)
 end)
 
 concommand.Add("wp_ssave", function(ply)
-   if(diffi == 1){
-        file.Write("WPSettings.txt", "Difficulty=Easy")
-   }
-   else if(diffi == 2){
-        file.Write("WPSettings.txt", "Difficulty=Normal")
-   }
-    else
-    {
-        file.Write("WPSettings.txt", "Difficulty=Hard")
-    }
-
-    if(comboSystem)then
-        file.Write("WPSettings.txt", "ComboSystem=True")
-    else
-        file.Write("WPSettings.txt", "ComboSystem=False")
-    end
-
+   
 end)
 
