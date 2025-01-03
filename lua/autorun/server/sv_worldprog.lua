@@ -1,11 +1,12 @@
 -- WORLD PROGRESSION v1.2 CREATED BY C̶a̶m̶p̶e̶r☻ --
 -- if you enjoy this addon or came for some inspiration, please drop a like! --
--- Planned Features: NPC Blacklist/Whitelist, NPC leveling from kills
+-- Planned Features: NPC Blacklist/Whitelist? More Settings?
 
 AddCSLuaFile("autorun/client/cl_worldprog.lua")
 
 local worldL = 1
 local worldXP = 250 -- default 250
+local multi = 1
 local comboTime = 25
 local wXPLoss = -50
 local wXPTotal = 0
@@ -16,12 +17,13 @@ local PVPMode = false
 local plyShare = false
 local comboSystem = true
 local diffi = 2 -- 1=easy, 2=med/normal, 3 = hard
+local baseNPCLevel = 1
+local baseNPCHealthM = 1
 local allParty = {}
 local txtTb = {}
 local PVPtop = {"ply1","ply2","ply3","ply4","ply5"}
-local wSettings = {"ply1","ply2","ply3","ply4","ply5"}
-local wSSettings = {"worldL","worldXP","wXPTotal","worldP"}
 local userSettings
+local serverSettings
 local ply = FindMetaTable("Player")
 local nextbotTable = {}
 
@@ -41,7 +43,6 @@ if(SERVER) then
     util.AddNetworkString("PParty")
     util.AddNetworkString("PartyUI")
     util.AddNetworkString("PartyCName")
-    util.AddNetworkString("WLVL")
     util.AddNetworkString("XPTotal")
     util.AddNetworkString("PartyInfo")
     util.AddNetworkString("killTotal")
@@ -69,6 +70,7 @@ if(SERVER) then
     util.AddNetworkString("plyCSettings")
     util.AddNetworkString("PlySettings")
     util.AddNetworkString("SendTop5")
+    util.AddNetworkString("loadsSettings")
 
     --Player Settings
     util.AddNetworkString("WorldDiff")
@@ -78,8 +80,6 @@ if(SERVER) then
     util.AddNetworkString("wpbind")
     util.AddNetworkString("SaveWrld")
     util.AddNetworkString("LoadWrld")
-    util.AddNetworkString("SaveConfig")
-    util.AddNetworkString("LoadConfig")
     util.AddNetworkString("resetSkills")
 end
 
@@ -96,48 +96,14 @@ function ArrayContains(array, value)
     return truth
 end
 
---Load Host Settings On Startup
-hook.Add("Initalize", "WorldStart", function()
+hook.Add("InitPostEntity", "WorldProgSStart", function()
+    updateWrldProg()
+    sendWrldData()
     for i, ply in ipairs(player.GetAll()) do
-        if(ply:IsUserGroup("host")) then
-         
-          ply:PrintMessage(HUD_PRINTCENTER,"World Settings Loaded.")
-        else
-            --Load client settings
+        if(ply:IsAdmin()) then
+            loadServerConfig()
         end
     end
-end)
-
-hook.Add("ShutDown", "WorldShutdown", function()
-    for i, ply in ipairs(player.GetAll()) do
-        if(ply:IsUserGroup("host")) then
-            --Save prev world settings
-         end
-    end
-end)
-
-hook.Add("PlayerInitialSpawn", "WorldProg/Load", function(ply)
- ply:SendHint("[WORLD PROG] Help & settings in utilities menu.", 65)
-    if(ply:GetXP() != nil)then 
-        ply:SetVar("XPS", 0)
-    end
-    if(ply:GetParty() == nil) then
-        ply:SaveParty("No Party")
-    end
-        
-    ply:SetVar("pshC", false)
-    ply:SetVar("HSK",0)
-    ply:SetVar("Kills",0)
-    ply:SetVar("HSKills", 0)
-    ply:SetCombo(0)
-    ply:SetKills(0)
-    if(worldP > 0)then
-        ply:SaveTokens(worldP)
-    end
-    ply:PrintMessage(HUD_PRINTCENTER,"World Progression Activated.")
-    updateWrldProg()
-    SendPlyInfo(ply:GetCombo(), ply)
-    sendWrldData()
 end)
 
 hook.Add("PlayerDisconnected", "PlayerLeave", function(ply)
@@ -153,10 +119,10 @@ hook.Add("Think", "UpdateAllHud", function()
                 SendPlyInfo(ply:GetCombo(), ply)
                 UpdatePlyHud(time,ply)
             end
-            if(ply:GetEyeTrace().Entity:IsNextBot() and ply:GetEyeTrace().Entity:IsValid()) then
+            if(ply:GetEyeTrace().Entity:IsNextBot() and ply:GetEyeTrace().Entity:IsValid()) then //NEXTBOT LVL INFO SEND
                 local cNPC = ply:GetEyeTrace().Entity
                 local entID = cNPC:EntIndex()
-                timer.Simple(0.4,function()
+                timer.Simple(0.2,function()
                     if(ply:GetDBSetting() == true and ply:Crouching()) then
                         ply:PrintMessage(3,"LVL: " .. nextbotTable[entID] .. ", HP: " .. cNPC:Health() .. "/" .. cNPC:GetMaxHealth())
                     end
@@ -164,22 +130,27 @@ hook.Add("Think", "UpdateAllHud", function()
                     SendnpcLvl(npcLvl,ply)
                 end)
                
-            elseif(ply:GetEyeTrace().Entity:IsNPC() and ply:GetEyeTrace().Entity:IsValid()) then
+            elseif(ply:GetEyeTrace().Entity:IsNPC() and ply:GetEyeTrace().Entity:IsValid()) then //NPC LVL INFO SEND
                 local cNPC = ply:GetEyeTrace().Entity
                 local npcTable = cNPC:GetTable()
                 if(npcTable == nil) then
                     
+                else
+                    timer.Simple(0.2,function()
+                        local npcLvl = npcTable["npcLVL"]
+                        local npcHealth = npcTable["npcHP"]
+                        if(npcLvl == nil)then
+                            npcLvl = 0
+                        end
+                        
+                        if(ply:GetDBSetting() == true and ply:Crouching()) then
+                            ply:PrintMessage(3,"LVL: " .. npcLvl .. ", HP: " .. cNPC:Health() .. "/" .. npcHealth)
+                        end
+                        SendnpcLvl(npcLvl,ply)
+                    end)
                 end
-                timer.Simple(0.4,function()
-                    local npcLvl = npcTable["npcLVL"]
-                    local npcHealth = npcTable["npcHP"]
-                    
-                    if(ply:GetDBSetting() == true and ply:Crouching()) then
-                        ply:PrintMessage(3,"LVL: " .. npcLvl .. ", HP: " .. cNPC:Health() .. "/" .. npcHealth)
-                    end
-                    SendnpcLvl(npcLvl,ply)
-                end)
-            elseif(ply:GetEyeTrace().Entity:IsPlayer() and ply:GetEyeTrace().Entity:IsValid()) then
+                
+            elseif(ply:GetEyeTrace().Entity:IsPlayer() and ply:GetEyeTrace().Entity:IsValid()) then //Other Player KTC INFO SEND
                 local cPly = ply:GetEyeTrace().Entity
                 if(timer.Exists("ComboChain" .. cPly:UserID())) then
                     local sk = cPly:GetKills()
@@ -198,8 +169,12 @@ end)
 function NPCInit(ent)
     if(IsValid(ent)) then
         local maxLvl = worldL + 5 --Max NPC Level
-        local entLvl = 1 -- NPC Level
+        local entLvl = baseNPCLevel -- NPC Level
         local hmulti = 1 -- entLVL health multip
+        if(maxLvl < baseNPCLevel) then
+            maxLvl = baseNPCLevel + worldL + 5
+        end
+
             local max = ent:GetMaxHealth()
             if(worldP > 0) then --Prestige Multiplier
                entLvl = 5 * worldP
@@ -229,11 +204,11 @@ function NPCInit(ent)
              end
               --NPC Health Gen
               if(entLvl >= maxLvl) then
-                  hmulti = math.random(entLvl, entLvl+2)
+                  hmulti = math.random(entLvl, entLvl+2) * baseNPCHealthM 
               elseif(entLvl > worldL and entLvl < maxLvl) then
-                  hmulti = math.random(entLvl, entLvl+1)
+                  hmulti = math.random(entLvl, entLvl+1) * baseNPCHealthM 
               else
-                  hmulti = math.random(entLvl, entLvl-1)
+                  hmulti = math.random(entLvl, entLvl-1) * baseNPCHealthM 
               end
               --Difficulty Multiplier
               if(diffi == 1)then
@@ -257,9 +232,13 @@ end
 function NextbotInit(ent)
     if(IsValid(ent)) then
         local maxLvl = worldL + 5 --Max NPC Level
-        local entLvl = 1 -- NPC Level
+        local entLvl = baseNPCLevel  -- NPC Level
         local hmulti = 1 -- entLVL health multip
             local max = ent:GetMaxHealth()
+            if(maxLvl < baseNPCLevel) then
+                maxLvl = baseNPCLevel + worldL + 5
+            end
+
             if(worldP > 0) then --Prestige Multiplier
                entLvl = 5 * worldP
                maxLvl = entLvl + 5
@@ -291,11 +270,11 @@ function NextbotInit(ent)
              nextbotTable[entID] = entLvl
               --NPC Health Gen
               if(entLvl >= maxLvl) then
-                  hmulti = math.random(entLvl, entLvl+2)
+                  hmulti = math.random(entLvl, entLvl+2) * baseNPCHealthM 
               elseif(entLvl > worldL and entLvl < maxLvl) then
-                  hmulti = math.random(entLvl, entLvl+1)
+                  hmulti = math.random(entLvl, entLvl+1) * baseNPCHealthM 
               else
-                  hmulti = math.random(entLvl, entLvl-1)
+                  hmulti = math.random(entLvl, entLvl-1) * baseNPCHealthM
               end
               --Difficulty Multiplier
               if(diffi == 1)then
@@ -807,6 +786,7 @@ function XpCal(ply)
         local HkillM = killM * 1.5
         comboXP = 30.0 * HkillM
     end
+
     chainM = ComboMultiplySet(pChain)
     --Party Check
     if(ply:GetPPSetting() == true) then
@@ -864,7 +844,7 @@ function XpCal(ply)
         end
     end
    
-    local FincomboXP = comboXP * chainM
+    local FincomboXP = comboXP * chainM * multi
     local total = math.Round(FincomboXP, 0)
     local skillt = ply:GetSkills()
     --PRESTIGE SKILLS CHECK / RESET
@@ -1035,6 +1015,7 @@ function updateWrldProg()
     if(total < 0) then
         total = 0
     end
+
     if(total >= worldXP) then
         local nT = total - worldXP
         wXPTotal = wXPTotal + total
@@ -1051,8 +1032,9 @@ function updateWrldProg()
             --Leave custom values
             comboTime = comboTime + 0.5
         end
-        worldL= worldL+ 1
-        if(worldL>= 6)then
+
+        worldL = worldL+ 1
+        if(worldL >= 6)then
             if(prestigeSystem == true) then
                 prestigeCal()
             end
@@ -1085,7 +1067,82 @@ function updateWrldProg()
         end
 
         if(nT > worldXP) then
-            updateWrldProg()
+            reupdateWrldProg(nT)
+        else
+            if(nT > 0 && nT < worldXP)then
+                ResetAllXP()
+                 for i, ply in ipairs(player.GetAll()) do
+                     ply:SetVar("XPS",nT)
+                 end
+            end
+        end
+    end
+
+    sendWrldData()
+    if(PVPMode == true)then
+        refreshtop5()
+    end
+end
+
+function reupdateWrldProg(sentXP)
+    --Player XP Check for Increase
+    local total = sentXP
+    if(total < 0) then
+        total = 0
+    end
+
+    if(total >= worldXP) then
+        local nT = total - worldXP
+        wXPTotal = wXPTotal + total
+        if(diffi == 1)then
+            comboTime = comboTime + 1.5
+            wXPLoss = wXPLoss - 30
+        elseif(diffi == 2)then
+            comboTime = comboTime + 1.0
+            wXPLoss = wXPLoss - 35
+        elseif(diffi == 3)then
+            comboTime = comboTime + 0.5
+            wXPLoss = wXPLoss - 50
+        elseif(diffi == 0) then
+            --Leave custom values
+            comboTime = comboTime + 0.5
+        end
+
+        worldL = worldL+ 1
+        if(worldL >= 6)then
+            if(prestigeSystem == true) then
+                prestigeCal()
+            end
+        end
+
+        for i, ply in ipairs(player.GetAll()) do
+         ply:ChatPrint("The world has grown stronger...")
+         ply:ChatPrint("Combo start time has increased to " .. comboTime .. "s.")
+         ply:EmitSound("buttons/blip1.wav")
+            if(ply:MPGet() == true) then
+                RefreshLockedPanel(ply)
+            end
+        end
+
+        local nXP = 0
+        if(diffi == 1)then
+            nXP = worldL * 120
+        elseif(diffi == 2)then
+            nXP = worldL * 240
+        elseif(diffi == 3)then
+            nXP = worldL * 300
+        end
+
+        local p = 0
+        if(worldP > 0) then
+            p = nXP * worldP * 1.5
+            worldXP = p
+        else
+            worldXP = nXP
+        end
+
+        if(nT > worldXP) then
+            reupdateWrldProg(nT)
         else
              if(nT > 0 && nT < worldXP)then
                 ResetAllXP()
@@ -1120,7 +1177,7 @@ function ResetAllXP()
     for i, ply in ipairs(player.GetAll()) do
         ply:SetVar("XPS",0)
         ply:SetXP(0)
-        ply:SendHint("(WORLD PROG) XP Reset!", 1)
+        --notification.AddLegacy("[WORLD PROG] XP Reset!", NOTIFY_HINT, 8)
     end
     if(PVPMode == true)then
         refreshtop5()
@@ -1641,12 +1698,8 @@ net.Receive("PartyCName", function()
     if(pname == nil or pname == "") then
         pname = "No party."
         ply:SaveParty(pname)
-        local htxt = "(WORLD PROG) Now in ".. tostring(pname)
-        ply:SendHint(htxt, 0)
     else
         ply:SaveParty(pname)
-        local htxt = "(WORLD PROG) Now in party: ".. tostring(pname)
-        ply:SendHint(htxt, 0)
     end
 end)
 
@@ -1750,77 +1803,98 @@ net.Receive("npcHelp", function()
     end
 end)
 
-net.Receive("SaveConfig", function()
-   
-end)
+function loadServerConfig()
+    if(file.Exists("worldprog_server.txt", "DATA")) then
+        serverSettings = file.Read("worldprog_server.txt", "DATA")
+            newCS = string.find(serverSettings,"comboStart = ")
+            newBXP = string.find(serverSettings,"baseXP = ")
+            newXPL = string.find(serverSettings,"xpLoss = ")
+            newNPCB = string.find(serverSettings,"npcBase = ")
+            newNPCH = string.find(serverSettings,"npcHealth = ")
+            newNPCHEnd = string.find(serverSettings,";")
 
-net.Receive("LoadConfig", function()
-    userSettings = file.Read("worldprog_client.txt", "DATA")
-       if(userSettings == nil) then
-            ply:ChatPrint("World Save Not Found or Didn't Load Properly.")
-        else
-           
-            newWli = string.find(userSettings,"worldL = ")
-            newWxpi = string.find(userSettings,"worldXP = ")
-            newWxpti = string.find(userSettings,"wXPTotal = ")
-            newWpi = string.find(userSettings,"worldP = ")
+            CS = string.sub(serverSettings, newCS, newBXP)
+            comboTime = tonumber(string.match(CS, "%d+"))
 
-            newWorldL = string.sub(userSettings, newWli, newWxpi)
-            worldL = tonumber(string.match(newWorldL, "%d+"))
+            BXP = string.sub(serverSettings, newBXP, newXPL)
+            multi = tonumber(string.match(BXP, "%d+"))
 
-            newWorldXP = string.sub(userSettings, newWxpi, newWxpti)
-            worldXP = tonumber(string.match(newWorldXP, "%d+"))
+            XPL = string.sub(serverSettings, newXPL, newNPCB)
+            wXPLoss = tonumber(string.match(XPL, "%d+"))
+            if(string.find(XPL,"-")) then
+                wXPLoss = wXPLoss * -1
+            end
 
-            newWorldXPT = string.sub(userSettings, newWxpti, newWpi)
-            wXPTotal = tonumber(string.match(newWorldXPT, "%d+"))
+            NPCB = string.sub(serverSettings, newNPCB, newNPCH)
+            baseNPCLevel = tonumber(string.match(NPCB, "%d+"))
 
-            newWorldP = string.sub(userSettings, newWpi, string.find(userSettings,";"))
-            worldP = tonumber(string.match(newWorldP, "%d+"))
-        end
-    curPly:ChatPrint("World Updated.")
+            NPCH = string.sub(serverSettings, newNPCH, newNPCHEnd)
+            baseNPCHealthM = tonumber(string.match(NPCH, "%d+"))
+    else
+
+    end
+end
+
+net.Receive("loadsSettings", function()
+    local admin = net.ReadEntity()
+    if(admin:IsAdmin()) then
+        loadServerConfig()
+    else
+       --Do nothing or say a mesage?
+    end
+ 
 end)
 
 net.Receive("SaveWrld", function()
     local admin = net.ReadEntity()
     if(admin:IsAdmin()) then
         if(file.Exists("worldprog_client.txt", "DATA")) then
-            admin:ChatPrint("World Data Found.")
             userSettings = file.Read("worldprog_client.txt", "DATA")
             if(string.find(userSettings, "worldL = ") == nil) then
                 local newSave = ""
                 newSave = newSave .. "worldL = " .. worldL .. "\n"
                 newSave = newSave .. "worldXP = " .. worldXP .. "\n"
                 newSave = newSave .. "wXPTotal = " .. wXPTotal .. "\n" --Make this current XP all players have and load it next time for save
-                newSave = newSave .. "worldP = " .. worldP .. ";\n"
+                newSave = newSave .. "worldP = " .. worldP .. "d;\n"
                 file.Append("worldprog_client.txt", newSave)
                 admin:ChatPrint("World Data saved.")
             else
                 local newSave = ""
                 if(string.find(userSettings, "winfoX = ") != nil) then
+                    newwX = string.find(userSettings,"winfoX")
+                    newwY= string.find(userSettings,"winfoY")
+                    newcX = string.find(userSettings,"comboX")
+                    newcY= string.find(userSettings,"comboY")
+                    newtX = string.find(userSettings,"timeX")
+                    newtY= string.find(userSettings,"timeY")
+                    newwE = string.find(newConfig,"w;")
+                    newcE = string.find(newConfig,"n;")
+                    newtE = string.find(newConfig,"t;")
+            
+                    newworldX = string.sub(userSettings, newwX, newwY)
+                    newworldY = string.sub(userSettings, newwY, newwE)
+                    newcomX = string.sub(userSettings, newcX, newWpi)
+                    newcomY = string.sub(userSettings, newcY, newcE)
+                    newtimeX = string.sub(userSettings, newtX, newtY)
+                    newtimeY = string.sub(userSettings, newtY, newtE)
+
                     newSave = newSave .. "worldL = " .. worldL .. "\n"
                     newSave = newSave .. "worldXP = " .. worldXP .. "\n"
                     newSave = newSave .. "wXPTotal = " .. wXPTotal .. "\n" --Make this current XP all players have and load it next time for save
-                    newSave = newSave .. "worldP = " .. worldP .. ";\n"
-                    --local found = {}
-                    --oldWli = string.find(userSettings,"worldL = ")
-                    --oldWxpi = string.find(userSettings,"worldXP = ")
+                    newSave = newSave .. "worldP = " .. worldP .. "d;\n"
 
-                    winfoX = string.find(userSettings,"winfoX = ")
-                    winfoY = string.find(userSettings,"winfoY = ")
-
-                    --newWorldL = string.sub(userSettings, newWli, newWxpi)
-                    --newWorldXP = string.sub(userSettings, newWxpi, newWxpti)
-
-                    prevwX = string.sub(userSettings, winfoX, winfoY)
-                    prevwY = string.sub(userSettings, winfoY, string.find(userSettings,"|"))
-                    newSave = newSave .. prevwX .. "\n"
-                    newSave = newSave .. prevwY .. "\n"
+                    newSave = newSave .. newworldX
+                    newSave = newSave .. newworldY
+                    newSave = newSave .. newcomX
+                    newSave = newSave .. newcomY
+                    newSave = newSave .. newtimeX
+                    newSave = newSave .. newtimeY
             
                 else
                     newSave = newSave .. "worldL = " .. worldL .. "\n"
                     newSave = newSave .. "worldXP = " .. worldXP .. "\n"
                     newSave = newSave .. "wXPTotal = " .. wXPTotal .. "\n" --Make this current XP all players have and load it next time for save
-                    newSave = newSave .. "worldP = " .. worldP .. ";\n"
+                    newSave = newSave .. "worldP = " .. worldP .. "d;\n"
                 end
         
                 file.Write("worldprog_client.txt", newSave)
@@ -1832,7 +1906,7 @@ net.Receive("SaveWrld", function()
             newSave = newSave .. "worldL = " .. worldL .. "\n"
             newSave = newSave .. "worldXP = " .. worldXP .. "\n"
             newSave = newSave .. "wXPTotal = " .. wXPTotal .. "\n" --Make this current XP all players have and load it next time for save
-            newSave = newSave .. "worldP = " .. worldP .. ";\n"
+            newSave = newSave .. "worldP = " .. worldP .. "d;\n"
             file.Write("worldprog_client.txt", newSave)
             admin:ChatPrint("World Data saved.")
         end
@@ -1861,18 +1935,12 @@ net.Receive("LoadWrld", function()
                 newWorldXPT = string.sub(userSettings, newWxpti, newWpi)
                 wXPTotal = tonumber(string.match(newWorldXPT, "%d+"))
     
-                newWpiEnd = string.find(userSettings,";")
+                newWpiEnd = string.find(userSettings,"d;")
                 newWorldP = string.sub(userSettings, newWpi, newWpiEnd)
                 worldP = tonumber(string.match(newWorldP, "%d+"))
                 if (worldP == nil) then 
                     worldP = 0
                 end
-
-                admin:ChatPrint("World Level " ..tostring(worldL))
-                admin:ChatPrint("World XP " ..tostring(worldXP))
-                admin:ChatPrint("World XPT " ..tostring(wXPTotal)) --Make this current XP all players have and load it next time for save
-                admin:ChatPrint("Prestige " .. tostring(worldP))
-
             else
                 admin:ChatPrint("No World Data Found.")
             end
@@ -1900,9 +1968,9 @@ net.Receive("DefWrld", function()
         wXPLoss = -50
         diffi = 2
         if(worldL > 1)then
-            local multi = worldL
-            multi = multi * 0.5
-            comboTime = comboTime + multi
+            local multiX = worldL
+            multiX = multiX * 0.5
+            comboTime = comboTime + multiX
         end
         admin:ChatPrint(admin:GetName() .. " has restored default settings.")
     else
@@ -1921,6 +1989,7 @@ net.Receive("uiSend", function()
     SendPlyXP(pxp, ply)
     SendDSettings(set, ply)
     SendPSettings(set2, ply)
+    --ADD NPC LVL UI HEAD TRACK
     openParty(ply)
 end)
 
@@ -1987,14 +2056,6 @@ net.Receive("WorldDiff", function()
                 plyx:PrintMessage(3,text)
             end
             worldXP = worldL * 120
-        elseif(sentdif == "Norm" or sentdif == "norm") then
-            diffi = 2
-            ply:SetVar("pwrlddiffi",diffi)
-            for i, plyx in ipairs(player.GetAll()) do
-                local text = "World Difficulty Has Been Changed To Normal."
-                plyx:PrintMessage(3,text)
-            end
-            worldXP = worldL * 250
         elseif(sentdif == "Hard") then
             diffi = 3
             ply:SetVar("pwrlddiffi",diffi)
@@ -2004,8 +2065,13 @@ net.Receive("WorldDiff", function()
             end
             worldXP = worldL * 300
         else
-            local text = "World Difficulty Failed To Update."
-            plyx:PrintMessage(3,text)
+            diffi = 2
+            ply:SetVar("pwrlddiffi",diffi)
+            for i, plyx in ipairs(player.GetAll()) do
+                local text = "World Difficulty Has Been Changed To Normal."
+                plyx:PrintMessage(3,text)
+            end
+            worldXP = worldL * 250
         end
     else
         ply:ChatPrint("You Must Be A Admin To Change Difficulty.")

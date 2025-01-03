@@ -3,7 +3,7 @@
 
 AddCSLuaFile("autorun/server/sv_worldprog.lua")
 
-local wXP = 0.0
+local wXP = 250
 local lvl = 1
 local pXP = 0.0
 local wPr = 0
@@ -43,25 +43,98 @@ local worldD = 2
 local PVPtop = {}
 local curKills = 0
 local comboSetting = true
-local worldHudX = ScrW() / 2
-local worldHudY = ScrH() / 2
+//Server Settings
+local cStart = 25.00
+local baseXP = 1
+local xpLoss = -50
+local npcBase = 1
+local npcHM = 1.00
+//World LVL UI
+worldHudX = ScrW() / 2
+worldHudY = ScrH() / 2 - 300
+//NPC LVL UI
+comboX = ScrW() / 2
+comboY = 90
+//Timer UI
+timerX = scrw / 2
+timerY = 50
 
-hook.Add("Initalize", "cWorldStart", function()
+function reassignConfig()
   if(file.Exists("worldprog_client.txt", "DATA")) then
     local userSettings = file.Read("worldprog_client.txt", "DATA")
+    if(string.find(userSettings, "winfoX = ") != nil) then
+      newWinX = string.find(userSettings,"winfoX = ")
+      newWinY = string.find(userSettings,"winfoY = ")
+  
+      winX = string.sub(userSettings, newWinX, newWinY)
+      worldHudX = tonumber(string.match(winX, "%d+"))
+      newwinyEnd = string.find(userSettings,"w;")
+      winY = string.sub(userSettings, newWinY, newwinyEnd)
+      worldHudY = tonumber(string.match(winY, "%d+"))
+      if(string.find(winY,"-")) then
+        worldHudY = worldHudY * -1
+      end
 
-    newWinX = string.find(userSettings,"winfoX = ")
-    newWinY = string.find(userSettings,"winfoY = ")
-    --newComboX = string.find(userSettings,"comboX = ")
-    --newComboY = string.find(userSettings,"comboY = ")
+    end
   
-    winX = string.sub(userSettings, newWinX, newWinY)
-    worldHudX = tonumber(string.match(winX, "%d+"))
+    if(string.find(userSettings, "comboX = ") != nil) then
+      newComboX = string.find(userSettings,"comboX = ")
+      newComboY = string.find(userSettings,"comboY = ")
   
-    winY = string.sub(userSettings, newWinY, newComboX)
-    worldHudY = tonumber(string.match(winY, "%d+"))
-    drawWorldHUD()
+      comX = string.sub(userSettings, newComboX, newComboY)
+      comboX = tonumber(string.match(comX, "%d+"))
+      newyEnd = string.find(userSettings,"n;")
+      comY = string.sub(userSettings, newComboY, newyEnd)
+      comboY = tonumber(string.match(comY, "%d+"))
+    end
+
+    if(string.find(userSettings, "timeX = ") != nil) then
+      newTimeX = string.find(userSettings,"timeX = ")
+      newTimeY = string.find(userSettings,"timeY = ")
+  
+      timX = string.sub(userSettings, newTimeX, newTimeY)
+      timerX = tonumber(string.match(timX, "%d+"))
+      newyEnd = string.find(userSettings,"t;")
+      timY = string.sub(userSettings, newTimeY, newyEnd)
+      timerY = tonumber(string.match(timY, "%d+"))
+    end
   end
+
+  if(file.Exists("worldprog_server.txt", "DATA")) then
+    serverSettings = file.Read("worldprog_server.txt", "DATA")
+    newCS = string.find(serverSettings,"comboStart = ")
+    newBXP = string.find(serverSettings,"baseXP = ")
+    newXPL = string.find(serverSettings,"xpLoss = ")
+    newNPCB = string.find(serverSettings,"npcBase = ")
+    newNPCH = string.find(serverSettings,"npcHealth = ")
+    newNPCHEnd = string.find(serverSettings,";")
+    
+    CS = string.sub(serverSettings, newCS, newBXP)
+    cStart = tonumber(string.match(CS, "%d+"))
+    
+    BXP = string.sub(serverSettings, newBXP, newXPL)
+    baseXP = tonumber(string.match(BXP, "%d+"))
+    
+    XPL = string.sub(serverSettings, newXPL, newNPCB)
+    xpLoss = tonumber(string.match(XPL, "%d+"))
+    if(string.find(XPL,"-")) then
+      xpLoss = xpLoss * -1
+    end
+
+    NPCB = string.sub(serverSettings, newNPCB, newNPCH)
+    npcBase = tonumber(string.match(NPCB, "%d+"))
+
+    NPCH = string.sub(serverSettings, newNPCH, newNPCHEnd)
+    npcHM = tonumber(string.match(NPCH, "%d+"))
+  end
+  --drawWorldHUD()
+end
+
+hook.Add("InitPostEntity", "WorldProgCStart", function()
+  reassignConfig()
+  hook.Remove("HUDPaint", "HUDPaint_WrldInfo")
+  drawWorldHUD()
+
 end)
 
 net.Receive("PresTok", function()
@@ -102,10 +175,12 @@ net.Receive("XPTotal", function()
 end)
 
 net.Receive("WLVL", function()
+  hook.Remove("HUDPaint", "HUDPaint_WrldInfo")
   lvl = net.ReadInt(32)
   wXP = tonumber(net.ReadInt(32))
   worldD = net.ReadInt(32)
   pvpmode = net.ReadBool()
+  drawWorldHUD()
 end)
 
 net.Receive("SendXP", function()
@@ -137,44 +212,21 @@ net.Receive("PartyS", function()
   end
 end)
 
+--WORLD INFO UI
 function drawWorldHUD()
-  draw.RoundedBox(0, worldHudX - 80, worldHudY + 585,146,20,Color(11,11,11,172))
-      draw.RoundedBox(0, worldHudX - 80, worldHudY + 585,146 * (total / wXP) ,20,Color(37,181,56,207))
-      draw.DrawText("World Level: " .. lvl, "ChatFont", worldHudX - 80, worldHudY + 560, Color(255,255,255))
-      draw.DrawText(total .. "/" .. wXP .. "xp", "HudHintTextLarge", worldHudX - 38, worldHudY + 586, Color(254,254,121))
+  hook.Add("HUDPaint", "HUDPaint_WrldInfo", function ()
+    draw.RoundedBox(0, worldHudX - 80, worldHudY + 585,146,20,Color(11,11,11,172))
+    draw.RoundedBox(0, worldHudX - 80, worldHudY + 585,146 * (total / wXP) ,20,Color(37,181,56,207))
+    draw.DrawText("World Level: " .. lvl, "ChatFont", worldHudX - 80, worldHudY + 560, Color(255,255,255))
+    draw.DrawText(total .. "/" .. wXP .. "xp", "HudHintTextLarge", worldHudX - 38, worldHudY + 586, Color(254,254,121))
 
-      if(wPr > 0) then
-        draw.DrawText("Prestige: " .. wPr, "ChatFont", worldHudX - 58, worldHudY + 615, Color(0,0,0))
-        draw.DrawText("Prestige: " .. wPr, "ChatFont", worldHudX - 58, worldHudY + 615, Color(253,57,8,177))
-      end
+        if(wPr > 0) then
+          draw.DrawText("Prestige: " .. wPr, "ChatFont", worldHudX - 58, worldHudY + 615, Color(0,0,0))
+          draw.DrawText("Prestige: " .. wPr, "ChatFont", worldHudX - 58, worldHudY + 615, Color(253,57,8,177))
+        end
+  end)
 end
 
---[[ hook.Add("OnScreenSizeChanged", "ReUpdate", function (oldWidth, oldHeight)
-  if(oldHeight != ScrH() and oldWidth != ScrW()) then
-    if(ScrH() >= 2560 and ScrW() >= 1440)then
-      --MY RESO
-      draw.DrawText("World Level: " .. lvl, "ChatFont", ScrW() / 2 - 80, ScrH() / 2 + 560, Color(255,255,255))
-      draw.DrawText(total .. "/" .. wXP .. "xp", "HudHintTextLarge", ScrW() / 2 - 38, ScrH() / 2 + 580, Color(255,255,255))
-      if(wPr > 0) then
-        draw.DrawText("Prestige: " .. wPr, "ChatFont", ScrW() / 2 - 45, ScrH() / 2 + 595, Color(255,166,12,177))
-      end
-    elseif(ScrH() <= 1920 and ScrW() <= 1280) then
-      --Normal RESO
-      draw.DrawText("World Level: " .. lvl, "ChatFont", ScrW() / 2 - 80, ScrH() / 2 + 360, Color(255,255,255))
-      draw.DrawText(total .. "/" .. wXP .. "xp", "HudHintTextLarge", ScrW() / 2 - 38, ScrH() / 2 + 380, Color(255,242,104))
-      if(wPr > 0) then
-        draw.DrawText("Prestige: " .. wPr, "ChatFont", ScrW() / 2 - 45, ScrH() / 2 + 395, Color(255,166,12,177))
-      end
-    else
-       --BOI RESO
-       draw.DrawText("World Level: " .. lvl, "ChatFont", ScrW() / 2 - 80, ScrH() / 2 + 560, Color(255,255,255))
-       draw.DrawText(total .. "/" .. wXP .. "xp", "HudHintTextLarge", ScrW() / 2 - 38, ScrH() / 2 + 580, Color(255,242,104))
-       if(wPr > 0) then
-         draw.DrawText("Prestige: " .. wPr, "ChatFont", ScrW() / 2 - 45, ScrH() / 2 + 595, Color(255,166,12,177))
-       end
-    end
-  end
-end) ]]
 
 --WORLD INFO HUD
 hook.Add("HUDPaint", "HUDPaint_XP", function ()
@@ -187,24 +239,23 @@ net.Receive("DrawNPClvl", function()
   local nlvl = net.ReadInt(32)
 
   if(NPCinfoUI == true) then
-
-    if(wPr == 0) then //no prestige
+    if(wPr == 0) then //no prestige lvl
       if(nlvl <= lvl) then
         hook.Add("HUDPaint", "HUDPaint_NPClvl", function ()
-          draw.RoundedBox(0, ScrW() / 2 - 25, 90,65,18,Color(0,0,0,177))
-          draw.DrawText("Level: " .. nlvl, "HudHintTextLarge",ScrW() / 2 -20,90,Color(0,255,98)) --ScrW() / 2 -52
+          draw.RoundedBox(0, comboX - 25, comboY ,65,18,Color(0,0,0,177))
+          draw.DrawText("Level: " .. nlvl, "HudHintTextLarge", comboX -20, comboY,Color(0,255,98)) 
         end)
     
       elseif(nlvl > lvl and nlvl < lvl+5) then
         hook.Add("HUDPaint", "HUDPaint_NPClvl", function ()
-          draw.RoundedBox(0, ScrW() / 2 - 35, 90,70,18,Color(0,0,0,177))
-          draw.DrawText("Level: " .. nlvl, "HudHintTextLarge",ScrW() / 2 -30,90,Color(255,247,0))
+          draw.RoundedBox(0, comboX - 35, comboY,70,18,Color(0,0,0,177))
+          draw.DrawText("Level: " .. nlvl, "HudHintTextLarge", comboX -30, comboY,Color(255,247,0))
         end)
     
       elseif(nlvl >= lvl+5) then
         hook.Add("HUDPaint", "HUDPaint_NPClvl", function ()
-          draw.RoundedBox(0, ScrW() / 2 - 35, 90,70,18,Color(0,0,0,177))
-          draw.DrawText("Level: ??", "HudHintTextLarge",ScrW() / 2 -30,90,Color(255,0,0))
+          draw.RoundedBox(0, comboX - 35, comboY,70,18,Color(0,0,0,177))
+          draw.DrawText("Level: ??", "HudHintTextLarge", comboX -30, comboY,Color(255,0,0))
         end)
       
       end
@@ -212,20 +263,20 @@ net.Receive("DrawNPClvl", function()
       local plvl = 5 * wPr
       if(nlvl <= plvl) then
         hook.Add("HUDPaint", "HUDPaint_NPClvl", function ()
-          draw.RoundedBox(0, ScrW() / 2 - 25, 90,65,18,Color(0,0,0,177))
-          draw.DrawText("Level: " .. nlvl, "HudHintTextLarge",ScrW() / 2 -20,90,Color(0,255,98)) --ScrW() / 2 -52
+          draw.RoundedBox(0, comboX - 25, comboY,65,18,Color(0,0,0,177))
+          draw.DrawText("Level: " .. nlvl, "HudHintTextLarge", comboX -20, comboY,Color(0,255,98)) 
         end)
     
       elseif(nlvl > plvl and nlvl < plvl+5) then
         hook.Add("HUDPaint", "HUDPaint_NPClvl", function ()
-          draw.RoundedBox(0, ScrW() / 2 - 35, 90,70,18,Color(0,0,0,177))
-          draw.DrawText("Level: " .. nlvl, "HudHintTextLarge",ScrW() / 2 -30,90,Color(255,247,0))
+          draw.RoundedBox(0, comboX - 35, comboY,70,18,Color(0,0,0,177))
+          draw.DrawText("Level: " .. nlvl, "HudHintTextLarge", comboX -30, comboY,Color(255,247,0))
         end)
     
       elseif(nlvl >= plvl+5) then
         hook.Add("HUDPaint", "HUDPaint_NPClvl", function ()
-          draw.RoundedBox(0, ScrW() / 2 - 35, 90,70,18,Color(0,0,0,177))
-          draw.DrawText("Level: ??", "HudHintTextLarge",ScrW() / 2 -30,90,Color(255,0,0))
+          draw.RoundedBox(0, comboX - 35, comboY,70,18,Color(0,0,0,177))
+          draw.DrawText("Level: ??", "HudHintTextLarge", comboX -30, comboY,Color(255,0,0))
         end)
       
       end
@@ -238,6 +289,7 @@ net.Receive("DrawNPClvl", function()
   
 end)
 
+--MULTIPLAYER KCT TIME INFO (SHOWS WHEN LOOKING AT PLAYER ENTITY)
 net.Receive("DrawPlyCT", function()
   local kills = net.ReadInt(32)
   local time = net.ReadInt(32)
@@ -288,54 +340,55 @@ net.Receive("DrawCombo", function()
     end
     if(chain == 1.5)then
       hook.Add("HUDPaint","HUDPaint_COMBO", function()
-      draw.RoundedBox(5,scrw / 2 - 72, 48,52,22,Color(0,0,0,111))
-      draw.DrawText(chain .. "x","TargetID", scrw / 2 - 68, 49, Color(95,95,95))
+      draw.RoundedBox(5,timerX - 72, timerY - 2,52,22,Color(0,0,0,111))
+      draw.DrawText(chain .. "x","TargetID", timerX - 68, timerY - 1, Color(95,95,95))
       end)
     end
     if(chain == 2)then
           hook.Add("HUDPaint","HUDPaint_COMBO", function()
-          draw.RoundedBox(5,scrw / 2 - 60, 48,31,22,Color(0,0,0,84))
-          draw.DrawText(chain .. "x","TargetID", scrw / 2 - 60, 48, Color(159,159,159))
+          draw.RoundedBox(5,timerX - 60, timerY - 2,31,22,Color(0,0,0,84))
+          draw.DrawText(chain .. "x","TargetID", timerX - 60, timerY - 2, Color(159,159,159))
         end)
     end
     if(chain == 2.5) then
           hook.Add("HUDPaint","HUDPaint_COMBO", function()
-          draw.RoundedBox(5,scrw / 2 - 72, 48,52,22,Color(0,0,0,111))
-          draw.DrawText(chain .. "x","TargetID", scrw / 2 - 68, 49, Color(214,214,214))
+          draw.RoundedBox(5,timerX - 72, timerY - 2,52,22,Color(0,0,0,111))
+          draw.DrawText(chain .. "x","TargetID", timerX - 68, timerY - 1, Color(214,214,214))
           end)
     end
     if(chain >= 3)then
           hook.Add("HUDPaint","HUDPaint_COMBO", function()
-          draw.RoundedBox(5,scrw / 2 - 60, 48,31,22,Color(0,0,0,84))
-          draw.DrawText(chain .. "x","TargetID", scrw / 2 - 60, 48, Color(255,255,255))
+          draw.RoundedBox(5,timerX - 60, timerY - 2,31,22,Color(0,0,0,84))
+          draw.DrawText(chain .. "x","TargetID", timerX - 60, timerY - 2, Color(255,255,255))
         end)
     end
     if(chain >= 4) then
       hook.Add("HUDPaint","HUDPaint_COMBO", function()
-        draw.RoundedBox(6,scrw / 2 - 60, 48,31,22,Color(0,0,0,84))
-        draw.DrawText(chain .. "x","TargetID", scrw / 2 - 60, 48, Color(255,225,0))
-        draw.DrawText(chain .. "x","TargetID", scrw / 2 - 58, 49, Color(136,255,0,245))
+        draw.RoundedBox(6,timerX - 60, timerY - 2,31,22,Color(0,0,0,84))
+        draw.DrawText(chain .. "x","TargetID", timerX - 60, timerY - 2, Color(255,225,0))
+        draw.DrawText(chain .. "x","TargetID", timerX - 58, timerY - 1, Color(136,255,0,245))
       end)
     end
     if(chain >= 6) then
         hook.Add("HUDPaint","HUDPaint_COMBO", function()
-          draw.RoundedBox(8,scrw / 2 - 58, 50,35,22,Color(0,0,0,84))
-          draw.DrawText(chain .. "x","TargetID", scrw / 2 - 60, 48, Color(211,33,95))
-          draw.DrawText(chain .. "x","TargetID", scrw / 2 - 58, 49, Color(147,0,196,245))
-          draw.DrawText("DECIMATION!","TargetIDSmall", scrw / 2 - 45, 15, Color(255,255,255))
+          draw.RoundedBox(8,timerX - 58, timerY,35,22,Color(0,0,0,84))
+          draw.DrawText(chain .. "x","TargetID", timerX - 60, timerY - 2, Color(211,33,95))
+          draw.DrawText(chain .. "x","TargetID", timerX - 58, timerY - 1, Color(147,0,196,245))
+          draw.DrawText("DECIMATION!","TargetIDSmall", timerX - 45, timerY - 35, Color(255,255,255))
         end)
     end
     if(chain >= 8) then
       hook.Add("HUDPaint","HUDPaint_COMBO", function()
-        draw.RoundedBox(10,scrw / 2 - 58, 50,35,22,Color(0,0,0,84))
-        draw.DrawText(chain .. "x","TargetID", scrw / 2 - 60, 48, Color(242,3,3))
-        draw.DrawText(chain .. "x","TargetID", scrw / 2 - 58, 49, Color(16,56,216,245))
-        draw.DrawText("ARMAGEDDON!","TargetIDSmall", scrw / 2 - 45, 15, Color(255,255,255))
+        draw.RoundedBox(10,timerX - 58, timerY,35,22,Color(0,0,0,84))
+        draw.DrawText(chain .. "x","TargetID", timerX - 60, timerY - 2, Color(242,3,3))
+        draw.DrawText(chain .. "x","TargetID", timerX - 58, timerY - 1, Color(16,56,216,245))
+        draw.DrawText("ARMAGEDDON!","TargetIDSmall", timerX - 45, timerY - 35, Color(255,255,255))
       end)
     end
   end
 end)
 
+--KTC TIMER UI
 net.Receive("DrawTime", function()
   local b = net.ReadFloat()
   if(tonumber(b) > tonumber(timeHS)) then
@@ -356,36 +409,37 @@ net.Receive("DrawTime", function()
       timer.Create("Hud_Time", 1, time, function()
         time = time - 1
       end)
+
       if(tonumber(time) > 15) then
           hook.Add("HUDPaint", "HUDPaint_CTIME", function()
             --Chain Time 15s+
-            draw.RoundedBox(0, scrw / 2 - 18, 52,40,18, Color(0,0,0,177))
-            draw.DrawText(time .. "s","TargetIDSmall", scrw / 2 - 18, 50, Color(98,255,0,236))
-            draw.DrawText("Combo Active","TargetIDSmall", scrw / 2 - 45, 75, Color(255,255,255))
+            draw.RoundedBox(0, timerX - 18, timerY + 2,40,18, Color(0,0,0,177))
+            draw.DrawText(time .. "s","TargetIDSmall", timerX - 18, timerY, Color(98,255,0,236))
+            draw.DrawText("Combo Active","TargetIDSmall", timerX - 45, timerY + 25, Color(255,255,255))
           end)
-        elseif(tonumber(time) > 60)then
+      elseif(tonumber(time) > 60)then
           hook.Add("HUDPaint", "HUDPaint_CTIME", function()
             --Chain Time 60s+
-            draw.RoundedBox(0, scrw / 2 - 18, 52,40,18, Color(0,0,0,177))
-            draw.DrawText(time .. "s","TargetIDSmall", scrw / 2 - 18, 50, Color(99,240,11,236))
-            draw.DrawText(time .. "s","TargetIDSmall", scrw / 2 - 20, 47, Color(0,81,255))
-            draw.DrawText("Combo Bustling!","TargetIDSmall", scrw / 2 - 46, 76, Color(129,28,252))
-            draw.DrawText("Combo Bustling","TargetIDSmall", scrw / 2 - 45, 75, Color(255,255,255))
+            draw.RoundedBox(0, timerX - 18, timerY+2 ,44,18, Color(0,0,0,177))
+            draw.DrawText(time .. "s","TargetIDSmall", timerX - 18, timerY, Color(99,240,11,236))
+            draw.DrawText(time .. "s","TargetIDSmall", timerX - 20, timerY - 3, Color(0,81,255))
+            draw.DrawText("Combo Bustling!","TargetIDSmall", timerX - 46, timerY + 26, Color(129,28,252))
+            draw.DrawText("Combo Bustling","TargetIDSmall", timerX - 45, timerY + 25, Color(255,255,255))
           end)
-        elseif(tonumber(time) < 15 and tonumber(time) > 5) then
+      elseif(tonumber(time) < 15 and tonumber(time) > 5) then
           hook.Add("HUDPaint", "HUDPaint_CTIME", function()
             --Chain Time
-            draw.RoundedBox(0, scrw / 2 - 18, 52,40,18,Color(0,0,0,177))
-            draw.DrawText(time .. "s!","TargetIDSmall", scrw / 2 - 18, 50, Color(255,247,0))
-            draw.DrawText("Combo Falling!","TargetIDSmall", scrw / 2 - 45, 75, Color(255,255,255))
+            draw.RoundedBox(0, timerX - 18, timerY+2,40,18,Color(0,0,0,177))
+            draw.DrawText(time .. "s!","TargetIDSmall", timerX - 18, timerY, Color(255,247,0))
+            draw.DrawText("Combo Falling!","TargetIDSmall", timerX - 45, timerY + 25, Color(255,255,255))
           end)
-        elseif(tonumber(time) <= 5)then
+      elseif(tonumber(time) <= 5)then
           hook.Add("HUDPaint", "HUDPaint_CTIME", function()
             --Chain Time
-            draw.RoundedBox(0, scrw / 2 - 18, 50,38,18,Color(0,0,0,177))
-            draw.DrawText(time .. "s!!","TargetIDSmall", scrw / 2 - 18, 50, Color(255,0,0))
-            draw.DrawText("Combo Fading!","TargetIDSmall", scrw / 2 - 46, 76, Color(255,3,3,180))
-            draw.DrawText("Combo Fading!","TargetIDSmall", scrw / 2 - 45, 75, Color(255,255,255))
+            draw.RoundedBox(0, timerX - 18, timerY,38,18,Color(0,0,0,177))
+            draw.DrawText(time .. "s!!","TargetIDSmall", timerX - 18, timerY, Color(255,0,0))
+            draw.DrawText("Combo Fading!","TargetIDSmall", timerX - 46, timerY + 26, Color(255,3,3,180))
+            draw.DrawText("Combo Fading!","TargetIDSmall", timerX - 45, timerY + 25, Color(255,255,255))
           end)
         end
     end
@@ -485,7 +539,7 @@ function PartyUIPanel()
     local PFrame = vgui.Create("DFrame")
     PFrame:SetPos(scrw / 2 - 60,10)
     PFrame:SetSize(395,500)
-    PFrame:SetTitle("World Prog. Panel (v1.0b)")
+    PFrame:SetTitle("World Prog. Panel (v1.4)")
     PFrame:SetVisible(true)
     PFrame:SetDraggable(true)
     PFrame:ShowCloseButton(true)
@@ -700,7 +754,7 @@ function PartyUIPanel()
           x:ChatPrint("Turn on party system to start (try wp_party concommand or from Client settings).")
         else
           Partyname = NameEntry:GetValue()
-          if(Partyname == nil) then
+          if(Partyname == nil) then --ADD PROFANITY CHECK
            x:ChatPrint("Invalid Party Name")
            SendPN("No party",x)
           else
@@ -733,6 +787,8 @@ function PartyUIPanel()
         x:ChatPrint("Invalid Party Name")
       else
         SendPN(tostring(Partyname),x)
+        local htxt = "(WORLD PROG) Now in ".. tostring(Partyname)
+        notification.AddLegacy(htxt, NOTIFY_HINT, 12)
         PFrame:Close()
         RefreshUI(x)
       end
@@ -857,7 +913,7 @@ function MiniPartyUIPanel()
     local MFrame = vgui.Create("DFrame")
     MFrame:SetPos(scrw / 2 - 25,100)
     MFrame:SetSize(150,125)
-    MFrame:SetTitle("W.P.M v1.1b")
+    MFrame:SetTitle("W.P.M v1.4")
     MFrame:SetVisible(true)
     MFrame:SetDraggable(true)
     MFrame:ShowCloseButton(true)
@@ -960,7 +1016,7 @@ function MiniPartyUIPanelRefresh(posx, posy)
     MFrame:SetY(posy)
     --MFrame:SetPos(pos)
     MFrame:SetSize(150,120)
-    MFrame:SetTitle("W.P.M v1.2b")
+    MFrame:SetTitle("W.P.M v1.4")
     MFrame:SetVisible(true)
     MFrame:ShowCloseButton(true)
     MFrame.OnClose = function()
@@ -1176,21 +1232,25 @@ function Helppanel()
     TimerLabel:SetPos(10,60)
     TimerLabel:SetText("ⓘ Timer Tips: Dealing damage and getting kills around a party or alone can increase your active combo time.\n Getting hurt can lower your time! '??'LVL foes provide extra time when damged or killed!")
     TimerLabel:SetSize(600,50)
+    TimerLabel:SetTextColor(Color(255,255,255))
 
     local WorldInfoLabel = vgui.Create("DLabel",HFrame)
     WorldInfoLabel:SetPos(10,100)
     WorldInfoLabel:SetText("ⓘ World Level Tips: Each time the world level increases, so could every new NPC's LVL!\n Players start combo time also increases each level. \nOnce reaching world level 6+ the world will prestige and reset to level 1.")
     WorldInfoLabel:SetSize(600,50)
+    WorldInfoLabel:SetTextColor(Color(255,255,255))
 
     local PresInfoLabel = vgui.Create("DLabel",HFrame)
     PresInfoLabel:SetPos(10,150)
     PresInfoLabel:SetText("ⓘ Prestige Tips: Prestiging also further increases NPC level cap and xp requirements.\n Every prestige level will provide players with one token, allowing for unique skills! (5 skill max.)")
     PresInfoLabel:SetSize(600,50)
+    PresInfoLabel:SetTextColor(Color(255,255,255))
 
     local PartInfoLabel = vgui.Create("DLabel",HFrame)
     PartInfoLabel:SetPos(10,200)
     PartInfoLabel:SetText("ⓘ Party Tips: Player's within the same party name have a chance to boost each other in various ways! \n You can help start or keep a surrounding member(s) timer alive by dealing dmg!\n Member(s) around each other can also generate XP depending on their last active or inactive combo kills.\n NPC's that aren't in combat with you can also help keep you timer stable by dealing damage to anyone.")
     PartInfoLabel:SetSize(600,50)
+    PartInfoLabel:SetTextColor(Color(255,255,255))
 
     local CommandinfoLabel = vgui.Create("DLabel",HFrame)
     CommandinfoLabel:SetPos(10,248)
@@ -1202,6 +1262,7 @@ function Helppanel()
     DiffinfoLabel:SetPos(10,290)
     DiffinfoLabel:SetText("ⓘ Difficulty Tips: Each difficulty affects the chances of higher levels to spawn.\n Each difficulty also effects world XP amount, XP gain, and combo start time (<- when the world gets stronger).\n In hard difficulty, combo time limit is ignored (no reduction when 60s+), but at the cost of stronger foes!")
     DiffinfoLabel:SetSize(600,50)
+    DiffinfoLabel:SetTextColor(Color(255,255,255))
 
     local VsinfoLabel = vgui.Create("DLabel",HFrame)
     VsinfoLabel:SetPos(10,340)
@@ -1353,7 +1414,7 @@ function PrestigePanel()
     xp2Labelc:SetPos(58,4)
     xp2Labelc:SetText("       '2x XP'\n      Cost: 2")
     xp2Labelc:SetSize(120,120)
-    if(table.HasValue(skillList,"fxCombo"))then
+    if(table.HasValue(skillList,"2x"))then
       xp2Labelc:SetText("Perk in tree")
     else
       if(pTok >= 2) then
@@ -1847,6 +1908,7 @@ end
 
 --CLIENT SIDE SETTINGS PANEL
 function Csettingpanel()
+  reassignConfig()
   local fp = LocalPlayer()
       net.Start("plyCSettings")
       net.WriteEntity(fp)
@@ -1860,24 +1922,27 @@ function Csettingpanel()
        plyPM = net.ReadBool()
        if(plyPM == nil)then
         plyPM = false
+
+       --ADD NPC LVL UI HEAD TRACK
       end
+       local CSFrame
         fp = net.ReadEntity()
-          local CSFrame = vgui.Create("DFrame")
+          CSFrame = vgui.Create("DFrame")
           CSFrame:SetPos(ScrW() / 2,ScrH() / 2)
-          CSFrame:SetSize(310,320)
+          CSFrame:SetSize(320,400)
           CSFrame:SetTitle("Client Settings")
           CSFrame:SetVisible(true)
           CSFrame:SetDraggable(true)
           CSFrame:ShowCloseButton(true)
           CSFrame:MakePopup()
-          CSFrame:SetKeyboardInputEnabled(false)
+          CSFrame:SetKeyboardInputEnabled(true)
           CSFrame.Paint = function(self, w, h)
           draw.RoundedBox(0,0,0,w,h, Color(13,13,10,233))
         end
 
         local cb1 = CSFrame:Add("DCheckBoxLabel")
-        cb1:SetPos(10,50)
-        cb1:SetText("World UI Information")
+        cb1:SetPos(10,30)
+        cb1:SetText("World Information UI")
         cb1:SetTextColor(Color(255,255,255))
         cb1:SetValue(wrldinfoUI)
         cb1:SizeToContents()
@@ -1887,8 +1952,8 @@ function Csettingpanel()
           drawWorldHUD()
         end
         local cb2 = CSFrame:Add("DCheckBoxLabel")
-        cb2:SetPos(10,80)
-        cb2:SetText("Timer & Combo UI Information")
+        cb2:SetPos(10,60)
+        cb2:SetText("Timer & Combo UI")
         cb2:SetTextColor(Color(255,255,255))
         cb2:SetValue(TCUI)
         cb2:SizeToContents()
@@ -1900,8 +1965,8 @@ function Csettingpanel()
           end
         end
         local cb3 = CSFrame:Add("DCheckBoxLabel")
-        cb3:SetPos(10,120)
-        cb3:SetText("NPC UI Information")
+        cb3:SetPos(10,90)
+        cb3:SetText("NPC Level UI")
         cb3:SetTextColor(Color(255,255,255))
         cb3:SetValue(NPCinfoUI)
         cb3:SizeToContents()
@@ -1909,8 +1974,8 @@ function Csettingpanel()
           NPCinfoUI = cb3:GetChecked()
         end
         local cb4 = CSFrame:Add("DCheckBoxLabel")
-        cb4:SetPos(10,150)
-        cb4:SetText("Player Combo UI Information (When looking at them)")
+        cb4:SetPos(10,120)
+        cb4:SetText("Other(s) KTC UI (Look at a Player to show their KTC info)")
         cb4:SetTextColor(Color(255,255,255))
         cb4:SetValue(plyinfoUI)
         cb4:SizeToContents()
@@ -1919,7 +1984,7 @@ function Csettingpanel()
         end
 
         local cb5 = CSFrame:Add("DCheckBoxLabel")
-        cb5:SetPos(10,180)
+        cb5:SetPos(10,150)
         cb5:SetText("Party System")
         cb5:SetTextColor(Color(255,255,255))
         cb5:SetValue(plyPM)
@@ -1933,15 +1998,15 @@ function Csettingpanel()
         end
 
         local cbx = CSFrame:Add("DNumSlider")
-        cbx:SetPos(10,210)
-        cbx:SetSize(200,20)
+        cbx:SetPos(10,170)
+        cbx:SetSize(250,60)
         cbx:SetText("World UI X")
-        cbx:SetValue(worldHudX)
-        cbx:SetDefaultValue(ScrW() / 2)
-        cbx:SetMin(-500)
-        cbx:SetMax(3000)
+        cbx:SetDefaultValue(scrw - 80)
+        cbx:SetMin(ScrW() / 2 * -1)
+        cbx:SetMax(ScrW() / 2 * 2)
         cbx:SetDecimals(0)
-        cbx:SizeToContents()
+        cbx:SetValue(worldHudX)
+        --cbx:SizeToContents()
         cbx.OnValueChanged = function(val)
           local wrldinfoUIx = cbx:GetValue()
           worldHudX = math.Round(wrldinfoUIx,0)
@@ -1949,14 +2014,14 @@ function Csettingpanel()
         end
 
         local cby = CSFrame:Add("DNumSlider")
-        cby:SetPos(10,240)
-        cby:SetSize(200,20)
+        cby:SetPos(10,205)
+        cby:SetSize(250,60)
         cby:SetText("World UI Y")
-        cby:SetValue(worldHudY)
-        cby:SetDefaultValue(ScrH() / 2)
-        cby:SetMin(-3000)
-        cby:SetMax(3000)
+        cby:SetDefaultValue(scrh + 585)
+        cby:SetMin(ScrH() / 2 * -1)
+        cby:SetMax(ScrH() / 2 * 2)
         cby:SetDecimals(0)
+        cby:SetValue(worldHudY)
         --cby:SizeToContents()
         cby.OnValueChanged = function(val)
           local wrldinfoUIy = cby:GetValue()
@@ -1964,25 +2029,214 @@ function Csettingpanel()
           drawWorldHUD()
         end
 
+        local cbnx = CSFrame:Add("DNumSlider")
+        cbnx:SetPos(10,240)
+        cbnx:SetSize(250,60)
+        cbnx:SetText("NPC LVL UI X")
+        --cbnx:SetValue(comboX)
+        cbnx:SetDefaultValue(scrw - 20)
+        cbnx:SetMin(ScrW() * -1)
+        cbnx:SetMax(ScrW() * 2)
+        cbnx:SetDecimals(0)
+        cbnx:SetValue(comboX)
+        cbnx.OnValueChanged = function(val)
+          local npcinfoUIx = cbnx:GetValue()
+          comboX = math.Round(npcinfoUIx,0)
+          hook.Remove("HUDPaint", "HUDPaint_comboX")
+          hook.Remove("HUDPaint", "HUDPaint_comboY")
+          hook.Add("HUDPaint", "HUDPaint_comboX", function ()
+            draw.RoundedBox(0, comboX - 25, comboY ,70,18,Color(0,0,0,177))
+            draw.DrawText("Level: X", "HudHintTextLarge", comboX -20, comboY,Color(0,255,98)) 
+          end)
+        end
+
+        local cbny = CSFrame:Add("DNumSlider")
+        cbny:SetPos(10,275)
+        cbny:SetSize(250,60)
+        cbny:SetText("NPC LVL UI Y")
+        --cbny:SetValue(comboY)
+        cbny:SetDefaultValue(90)
+        cbny:SetMin(ScrH() * -1)
+        cbny:SetMax(ScrH() * 2)
+        cbny:SetDecimals(0)
+        cbny:SetValue(comboY)
+        cbny.OnValueChanged = function(val)
+          local npcinfoUIy = cbny:GetValue()
+          comboY = math.Round(npcinfoUIy,0)
+          hook.Remove("HUDPaint", "HUDPaint_comboX")
+          hook.Remove("HUDPaint", "HUDPaint_comboY")
+          hook.Add("HUDPaint", "HUDPaint_comboY", function ()
+            draw.RoundedBox(0, comboX - 25, comboY ,70,18,Color(0,0,0,177))
+            draw.DrawText("Level: Y", "HudHintTextLarge", comboX -20 , comboY,Color(0,255,98)) 
+          end)
+        end
+
+        local cbtx = CSFrame:Add("DNumSlider")
+        cbtx:SetValue(timerX)
+        cbtx:SetPos(10,325)
+        cbtx:SetSize(250,60)
+        cbtx:SetText("Timer UI X")
+        --cbny:SetValue(comboY)
+        cbtx:SetDefaultValue(90)
+        cbtx:SetMin(ScrH() * -1)
+        cbtx:SetMax(ScrH() * 2)
+        cbtx:SetDecimals(0)
+        cbtx:SetValue(timerX)
+        cbtx.OnValueChanged = function(val)
+          local npcinfoUIy = cbtx:GetValue()
+          timerX = math.Round(npcinfoUIy,0)
+          hook.Remove("HUDPaint", "HUDPaint_timerX")
+          hook.Remove("HUDPaint", "HUDPaint_timerY")
+          hook.Add("HUDPaint", "HUDPaint_timerX", function ()
+            draw.RoundedBox(0, timerX - 18, timerY + 2,40,18, Color(0,0,0,177))
+            draw.DrawText("99s","TargetIDSmall", timerX - 18, timerY, Color(98,255,0,236))
+            draw.DrawText("Combo Active","TargetIDSmall", timerX - 45, timerY + 25, Color(255,255,255))
+          end)
+        end
+
+
+        local cbty = CSFrame:Add("DNumSlider")
+        cbty:SetPos(10,355)
+        cbty:SetSize(250,60)
+        cbty:SetText("Timer UI Y")
+        cbty:SetDefaultValue(50)
+        cbty:SetMin(ScrH() * -1)
+        cbty:SetMax(ScrH() * 2)
+        cbty:SetDecimals(0)
+        cbty:SetValue(timerY)
+        cbty.OnValueChanged = function(val)
+          local npcinfoUIy = cbty:GetValue()
+          timerY = math.Round(npcinfoUIy,0)
+          hook.Remove("HUDPaint", "HUDPaint_timerX")
+          hook.Remove("HUDPaint", "HUDPaint_timerY")
+          hook.Add("HUDPaint", "HUDPaint_timerY", function ()
+            draw.RoundedBox(0, timerX - 18, timerY + 2,40,18, Color(0,0,0,177))
+            draw.DrawText("99s","TargetIDSmall", timerX - 18, timerY, Color(98,255,0,236))
+            draw.DrawText("Combo Active","TargetIDSmall", timerX - 45, timerY + 25, Color(255,255,255))
+          end)
+        end
+
+        CSFrame.OnClose = function()
+          hook.Remove("HUDPaint", "HUDPaint_comboY")
+          hook.Remove("HUDPaint", "HUDPaint_comboX")
+          hook.Remove("HUDPaint", "HUDPaint_timerX")
+          hook.Remove("HUDPaint", "HUDPaint_timerY")
+
+          local newConfig
+          if(file.Exists("worldprog_client.txt", "DATA")) then
+            newConfig = file.Read("worldprog_client.txt", "DATA")
+            if(string.find(newConfig, "winfoX = ") != nil and string.find(newConfig, "comboX = ") != nil) then //if full client config
+              if(string.find(newConfig, "worldL = ") != nil) then
+                newWli = string.find(newConfig,"worldL")
+                newWxpi = string.find(newConfig,"worldXP")
+                newWxpti = string.find(newConfig,"wXPTotal")
+                newWpi = string.find(newConfig,"worldP")
+                newWpiEnd = string.find(newConfig,"d;")
+          
+                newWorldL = string.sub(newConfig, newWli, newWxpi)
+                newWorldXP = string.sub(newConfig, newWxpi+1, newWxpti)
+                newWorldXPT = string.sub(newConfig, newWxpti+1, newWpi)
+                newWorldP = string.sub(newConfig, newWpi+1, newWpiEnd)
+
+                newConfig = ""
+                newConfig = newConfig .. "comboX = " .. comboX .. "\n"
+                newConfig = newConfig .. "comboY = " .. comboY .. "n;\n"
+                newConfig = newConfig .. "winfoX = " .. worldHudX .. "\n"
+                newConfig = newConfig .. "winfoY = " .. worldHudY .. "w;\n"
+                newConfig = newConfig .. "timeX = " .. timerX .. "\n"
+                newConfig = newConfig .. "timeY = " .. timerY .. "t;\n"
+
+                newConfig = newConfig .. newWorldL
+                newConfig = newConfig .. newWorldXP
+                newConfig = newConfig .. newWorldXPT
+                newConfig = newConfig .. newWorldP
+                file.Write("worldprog_client.txt", newConfig)
+              elseif (string.find(newConfig, "comboX = ") != nil) then //if only combo config
+                if(string.find(newConfig, "worldL = ") != nil) then
+                  newWli = string.find(newConfig,"worldL")
+                  newWxpi = string.find(newConfig,"worldXP")
+                  newWxpti = string.find(newConfig,"wXPTotal")
+                  newWpi = string.find(newConfig,"worldP")
+                  newWpiEnd = string.find(newConfig,"d;")
+            
+                  newWorldL = string.sub(newConfig, newWli, newWxpi)
+                  newWorldXP = string.sub(newConfig, newWxpi+1, newWxpti)
+                  newWorldXPT = string.sub(newConfig, newWxpti+1, newWpi)
+                  newWorldP = string.sub(newConfig, newWpi+1, newWpiEnd)
+          
+                  newConfig = ""
+                  newConfig = newConfig .. "comboX = " .. comboX .. "\n"
+                  newConfig = newConfig .. "comboY = " .. comboY .. "n;\n"
+                  newConfig = newConfig .. "winfoX = " .. worldHudX .. "\n"
+                  newConfig = newConfig .. "winfoY = " .. worldHudY .. "w;\n"
+                  newConfig = newConfig .. "timeX = " .. timerX .. "\n"
+                  newConfig = newConfig .. "timeY = " .. timerY .. "t;\n"
+          
+                  newConfig = newConfig .. newWorldL
+                  newConfig = newConfig .. newWorldXP
+                  newConfig = newConfig .. newWorldXPT
+                  newConfig = newConfig .. newWorldP
+                  file.Write("worldprog_client.txt", newConfig)
+                else
+                  newConfig = ""
+                  newConfig = newConfig .. "comboX = " .. comboX .. "\n"
+                  newConfig = newConfig .. "comboY = " .. comboY .. "n;\n"
+                  newConfig = newConfig .. "winfoX = " .. worldHudX .. "\n"
+                  newConfig = newConfig .. "winfoY = " .. worldHudY .. "w;\n"
+                  newConfig = newConfig .. "timeX = " .. timerX .. "\n"
+                  newConfig = newConfig .. "timeY = " .. timerY .. "t;\n"
+                end
+            else -- If Blank
+                --Make a net proccess that gets hud pos info and sends it
+                newConfig = ""
+                newConfig = newConfig .. "comboX = " .. comboX .. "\n"
+                newConfig = newConfig .. "comboY = " .. comboY .. "n;\n"
+                newConfig = newConfig .. "winfoX = " .. worldHudX .. "\n"
+                newConfig = newConfig .. "winfoY = " .. worldHudY .. "w;\n"
+                newConfig = newConfig .. "timeX = " .. worldHudX .. "\n"
+                newConfig = newConfig .. "timeY = " .. worldHudY .. "t;\n"
+              end
+
+              file.Write("worldprog_client.txt", newConfig)
+            end
+            fp:ChatPrint("Config Updated")
+          else
+            newConfig = ""
+            newConfig = newConfig .. "comboX = " .. comboX .. "\n"
+            newConfig = newConfig .. "comboY = " .. comboY .. "n;\n"
+            newConfig = newConfig .. "winfoX = " .. worldHudX .. "\n"
+            newConfig = newConfig .. "winfoY = " .. worldHudY .. "w;\n"
+            newConfig = newConfig .. "timeX = " .. worldHudX .. "\n"
+            newConfig = newConfig .. "timeY = " .. worldHudY .. "t;\n"
+            file.Write("worldprog_client.txt", newConfig)
+            fp:ChatPrint("Config Created")
+          end
+        end
+
       end)
 end
 
-function Ssettingpanel()
+function Ssettingpanel() --Server Setttings Panel
+  reassignConfig()
   RefreshLUI(LocalPlayer())
   local SSFrame = vgui.Create("DFrame")
-  SSFrame:SetPos(ScrW() / 2,ScrH() / 2)
-  SSFrame:SetSize(300,150)
+  SSFrame:SetPos(ScrW() / 2 + 20 ,ScrH() / 2)
+  SSFrame:SetSize(320,360)
   SSFrame:SetTitle("Server Settings")
   SSFrame:SetVisible(true)
   SSFrame:SetDraggable(true)
   SSFrame:ShowCloseButton(true)
   SSFrame:MakePopup()
-  SSFrame:SetKeyboardInputEnabled(false)
+  SSFrame:SetKeyboardInputEnabled(true)
   SSFrame.Paint = function(self, w, h)
       draw.RoundedBox(0,0,0,w,h, Color(0,0,0,231))
     end
 
-    local difcb = vgui.Create("DComboBox", SSFrame)
+    local difcb = vgui.Create("DLabel", SSFrame)
+    difcb:SetText("World Difficulty")
+    difcb:SetPos(10,10)
+    difcb:SetSize(100,40)
+
     local v = ""
     if(worldD == 1) then
       v = "Easy"
@@ -1993,13 +2247,13 @@ function Ssettingpanel()
       else
         v = "Custom"
     end
-    difcb:SetPos(10,20)
+    local difcb = vgui.Create("DComboBox", SSFrame)
+    difcb:SetPos(10,40)
     difcb:SetSize(100,20)
-    difcb:SetValue(v)
     difcb:AddChoice("Easy","easy")
     difcb:AddChoice("Normal","norm")
     difcb:AddChoice("Hard", "hard")
-    
+    difcb:SetValue(tostring(v))
     difcb.OnSelect = function(self,index,value)
       local fp = LocalPlayer()
       net.Start("WorldDiff")
@@ -2010,7 +2264,7 @@ function Ssettingpanel()
     end
 
     local prescb = vgui.Create("DCheckBoxLabel", SSFrame)
-    prescb:SetPos(10,50)
+    prescb:SetPos(10,70)
     prescb:SetText("Prestige System")
     prescb:SetTextColor(Color(255,255,255))
     prescb:SetValue(presmode)
@@ -2031,7 +2285,7 @@ function Ssettingpanel()
     end
 
     local npcb = vgui.Create("DCheckBoxLabel", SSFrame)
-    npcb:SetPos(10,80)
+    npcb:SetPos(10,90)
     npcb:SetText("NPC Timer Assist")
     npcb:SetTextColor(Color(255,255,255))
     npcb:SetValue(npcmode)
@@ -2052,7 +2306,7 @@ function Ssettingpanel()
     end
 
     local pvpcb = vgui.Create("DCheckBoxLabel", SSFrame)
-       pvpcb:SetPos(10,110)
+       pvpcb:SetPos(10,113)
        pvpcb:SetText("XP VS Mode")
        pvpcb:SetTextColor(Color(255,255,255))
        pvpcb:SetValue(pvpmode)
@@ -2074,7 +2328,7 @@ function Ssettingpanel()
 
       local csys = vgui.Create("DCheckBoxLabel", SSFrame)
       csys:SetPos(10,135)
-      csys:SetText("Combo System")
+      csys:SetText("Combo Timer System (KCT)")
       csys:SetTextColor(Color(255,255,255))
       csys:SetValue(true)
       csys:SizeToContents()
@@ -2090,6 +2344,108 @@ function Ssettingpanel()
           LocalPlayer():ChatPrint("You must be admin to change server settings.")
         end
       end
+
+      local cbT = SSFrame:Add("DNumSlider")
+      cbT:SetPos(10,150)
+      cbT:SetSize(280,60)
+      cbT:SetText("Combo Start Time")
+      cbT:SetDefaultValue(25)
+      cbT:SetMin(0)
+      cbT:SetMax(120) -- 2 mins
+      cbT:SetDecimals(2)
+      cbT:SizeToContents()
+      cbT:SetValue(cStart) --get from config
+      cbT.OnValueChanged = function(val)
+        cStart = cbT:GetValue()
+        --worldHudX = temp
+      end
+
+      local xpM = SSFrame:Add("DNumSlider")
+      xpM:SetPos(10,190)
+      xpM:SetSize(280,60)
+      xpM:SetText("Base XP Multiplier")
+      xpM:SetDefaultValue(1)
+      xpM:SetMin(0)
+      xpM:SetMax(100) -- 2 mins
+      xpM:SetDecimals(0)
+      xpM:SizeToContents()
+      xpM:SetValue(baseXP) --get from config
+      xpM.OnValueChanged = function(val)
+        baseXP = xpM:GetValue()
+        --worldHudX = temp
+      end
+
+      local xpL = SSFrame:Add("DNumSlider")
+      xpL:SetPos(10,230)
+      xpL:SetSize(280,60)
+      xpL:SetText("XP Loss Amount")
+      xpL:SetDefaultValue(-50)
+      xpL:SetMin(-500)
+      xpL:SetMax(500) -- 2 mins
+      xpL:SetDecimals(0)
+      xpL:SizeToContents()
+      xpL:SetValue(xpLoss) --get from config
+      xpL.OnValueChanged = function(val)
+        xpLoss = xpL:GetValue()
+        --worldHudX = temp
+      end
+
+      local npcL = SSFrame:Add("DNumSlider")
+      npcL:SetPos(10,270)
+      npcL:SetSize(280,60)
+      npcL:SetText("NPC Base Level")
+      npcL:SetDefaultValue(1)
+      npcL:SetMin(1)
+      npcL:SetMax(100) -- 2 mins
+      npcL:SetDecimals(0)
+      npcL:SizeToContents()
+      npcL:SetValue(npcBase) --get from config
+      npcL.OnValueChanged = function(val)
+        npcBase = npcL:GetValue()
+        --worldHudX = temp
+      end
+
+      local npcH = SSFrame:Add("DNumSlider")
+      npcH:SetPos(10,315)
+      npcH:SetSize(300,60)
+      npcH:SetText("NPC Base Health Lvl Multiplier")
+      npcH:SetDefaultValue(1)
+      npcH:SetMin(0.5)
+      npcH:SetMax(100) -- 2 mins
+      npcH:SetDecimals(2)
+      npcH:SizeToContents()
+      npcH:SetValue(npcHM) --get from config
+      npcH.OnValueChanged = function(val)
+        npcHM = npcH:GetValue()
+        --worldHudX = temp
+      end
+
+      SSFrame.OnClose = function() --Save 
+        fp = LocalPlayer()
+        local newSettings = ""
+        if(file.Exists("worldprog_server.txt", "DATA")) then
+          serverSettings = file.Read("worldprog_server.txt", "DATA")
+          newSettings = "comboStart = " .. cStart .. "\n"
+          newSettings = newSettings .. "baseXP = " .. baseXP .. "\n"
+          newSettings = newSettings .. "xpLoss = " .. xpLoss .. "\n"
+          newSettings = newSettings .. "npcBase = " .. npcBase .. "\n"
+          newSettings = newSettings .. "npcHealth = " .. npcHM .. ";\n"
+            file.Write("worldprog_server.txt", newSettings)
+            fp:ChatPrint("Server Settings Updated.")
+        else
+          newSettings = "comboStart = " .. cStart .. "\n"
+          newSettings = newSettings .. "baseXP = " .. baseXP .. "\n"
+          newSettings = newSettings .. "xpLoss = " .. xpLoss .. "\n"
+          newSettings = newSettings .. "npcBase = " .. npcBase .. "\n"
+          newSettings = newSettings .. "npcHealth = " .. npcHM .. ";\n"
+          file.Write("worldprog_server.txt", newSettings)
+          fp:ChatPrint("Server Settings saved.")
+        end
+
+        net.Start("loadsSettings")
+        net.WriteEntity(fp)
+        net.SendToServer()
+      end
 end
 
 hook.Add("AddToolMenuCategories", "WorldProgCat",function()
@@ -2104,31 +2460,21 @@ concommand.Add("openworldui", function ()
   net.SendToServer()
 end)
 
-concommand.Add("updatecombotime", function ()
-  --create call to server to reupdate World Combo TIme values 
-  if(LocalPlayer():IsAdmin())then
-    LocalPlayer():ChatPrint("Combo Start Time to: Cannot be editted since in development." )
-   else
-     LocalPlayer():ChatPrint("Must be admin to set this value")
-  end
-
-end)
-
-concommand.Add("deathxp", function ()
-  --create call to server to reupdate death xp values
-     if(LocalPlayer():IsAdmin())then
-        LocalPlayer():ChatPrint("Death xp loss set to: Cannot be editted since in development." )
-       else
-         LocalPlayer():ChatPrint("Must be admin to set this value")
-      end
-end)
-
 concommand.Add("defaultSet", function ()
   --create call to server to reupdate death xp values
   local fp = LocalPlayer()
   net.Start("DefWrld")
   net.WriteEntity(fp)
   net.SendToServer()
+end)
+
+concommand.Add("wpc_default", function ()
+  worldHudX = ScrW() / 2
+  worldHudY = ScrH() / 2 - 300
+  comboX = ScrW() / 2
+  comboY = 90
+  timerX = scrw / 2
+  timerY = 50
 end)
 
 concommand.Add("wp_help", function ()
@@ -2174,89 +2520,9 @@ concommand.Add("wp_load", function()
   net.SendToServer()
 end)
 
-concommand.Add("wpc_save", function()
-  local fp = LocalPlayer()
-  local newConfig = file.Read("worldprog_client.txt", "DATA")
-  if(file.Exists("worldprog_client.txt", "DATA")) then
-    if(string.find(newConfig, "winfoX = ") == nil) then
-      if(string.find(newConfig, "worldL = ") != nil) then
-        newWli = string.find(newConfig,"worldL")
-        newWxpi = string.find(newConfig,"worldXP")
-        newWxpti = string.find(newConfig,"wXPTotal")
-        newWpi = string.find(newConfig,"worldP")
-        newWpiEnd = string.find(newConfig,";")
-  
-        newWorldL = string.sub(newConfig, newWli, newWxpi)
-        newWorldXP = string.sub(newConfig, newWxpi+1, newWxpti)
-        newWorldXPT = string.sub(newConfig, newWxpti+1, newWpi)
-        newWorldP = string.sub(newConfig, newWpi+1, newWpiEnd)
-
-        newConfig = ""
-        --newConfig = newConfig .. "comboX = " .. worldHudX .. "\n"
-        --newConfig = newConfig .. "comboY = " .. worldHudY .. "\n"
-        newConfig = newConfig .. "winfoX = " .. worldHudX .. "\n"
-        newConfig = newConfig .. "winfoY = " .. worldHudY .. "|\n"
-
-        newConfig = newConfig .. newWorldL
-        newConfig = newConfig .. newWorldXP
-        newConfig = newConfig .. newWorldXPT
-        newConfig = newConfig .. newWorldP
-        file.Write("worldprog_client.txt", newConfig)
-      else
-        --Make a net proccess that gets hud pos info and sends it
-        newConfig = ""
-        --newConfig = newConfig .. "comboX = " .. worldHudX .. "\n"
-        --newConfig = newConfig .. "comboY = " .. worldHudY .. "\n"
-        newConfig = newConfig .. "winfoX = " .. worldHudX .. "\n"
-        newConfig = newConfig .. "winfoY = " .. worldHudY .. "|\n"
-      end
-    else
-       if(string.find(newConfig, "worldL = ") != nil) then
-        newWli = string.find(newConfig,"worldL")
-        newWxpi = string.find(newConfig,"worldXP")
-        newWxpti = string.find(newConfig,"wXPTotal")
-        newWpi = string.find(newConfig,"worldP")
-        newWpiEnd = string.find(newConfig,";")
-  
-        newWorldL = string.sub(newConfig, newWli, newWxpi)
-        newWorldXP = string.sub(newConfig, newWxpi+1, newWxpti)
-        newWorldXPT = string.sub(newConfig, newWxpti+1, newWpi)
-        newWorldP = string.sub(newConfig, newWpi+1, newWpiEnd)
-
-        newConfig = ""
-        --newConfig = newConfig .. "comboX = " .. worldHudX .. "\n"
-        --newConfig = newConfig .. "comboY = " .. worldHudY .. "\n"
-        newConfig = newConfig .. "winfoX = " .. worldHudX .. "\n"
-        newConfig = newConfig .. "winfoY = " .. worldHudY .. "|\n"
-
-        newConfig = newConfig .. newWorldL
-        newConfig = newConfig .. newWorldXP
-        newConfig = newConfig .. newWorldXPT
-        newConfig = newConfig .. newWorldP
-        file.Write("worldprog_client.txt", newConfig)
-      else
-        --Make a net proccess that gets hud pos info and sends it
-        newConfig = ""
-        --newConfig = newConfig .. "comboX = " .. worldHudX .. "\n"
-        --newConfig = newConfig .. "comboY = " .. worldHudY .. "\n"
-        newConfig = newConfig .. "winfoX = " .. worldHudX .. "\n"
-        newConfig = newConfig .. "winfoY = " .. worldHudY .. "|\n"
-      end
-
-      file.Write("worldprog_client.txt", newConfig)
-    end
-    fp:ChatPrint("Config Updated")
-  else
-    file.Write("worldprog_client.txt", newConfig)
-    fp:ChatPrint("Config Created")
-  end
-  
-end)
-
 concommand.Add("wpc_load", function()
   local fp = LocalPlayer()
   if(file.Exists("worldprog_client.txt", "DATA")) then
-    fp:ChatPrint("Config Found.")
     local userSettings = file.Read("worldprog_client.txt", "DATA")
 
     if(string.find(userSettings, "winfoX = ") != nil) then
@@ -2264,13 +2530,30 @@ concommand.Add("wpc_load", function()
       newWinY = string.find(userSettings,"winfoY = ")
       newComboX = string.find(userSettings,"comboX = ")
       newComboY = string.find(userSettings,"comboY = ")
+      newTimerX = string.find(userSettings,"timeX = ")
+      newTimerY = string.find(userSettings,"timeY = ")
 
       winX = string.sub(userSettings, newWinX, newWinY)
       worldHudX = tonumber(string.match(winX, "%d+"))
 
-      winY = string.sub(userSettings, newWinY, newComboX)
+      newwinyEnd = string.find(userSettings,"w;")
+      winY = string.sub(userSettings, newWinY, newwinyEnd)
       worldHudY = tonumber(string.match(winY, "%d+"))
-      fp:ChatPrint("Config Loaded.")
+
+      comX = string.sub(userSettings, newComboX, newComboY)
+      comboX = tonumber(string.match(comX, "%d+"))
+
+      newcomyEnd = string.find(userSettings,"n;")
+      comY = string.sub(userSettings, newComboY, newcomyEnd)
+      comboY = tonumber(string.match(comY, "%d+"))
+
+      tX = string.sub(userSettings, newTimerX, newTimerY)
+      timerX = tonumber(string.match(tX, "%d+"))
+
+      newtyEnd = string.find(userSettings,"t;")
+      tY = string.sub(userSettings, newTimerY, newtyEnd)
+      timerY = tonumber(string.match(tY, "%d+"))
+      --reassignConfig()
     else
       fp:ChatPrint("No Hud Config Data Found.")
     end
@@ -2279,7 +2562,7 @@ concommand.Add("wpc_load", function()
   end
 end)
 
-concommand.Add("wp_reseths", function()
+concommand.Add("wp_reseths", function() //Reset highscore command
   chainHS = 0
   timeHS = 0
   LocalPlayer():PrintMessage(3,"Your highscores have been reset.")
@@ -2287,14 +2570,14 @@ end)
 
 hook.Add("PopulateToolMenu","WorldProgSettings", function()
 
-  spawnmenu.AddToolMenuOption("Options","World Progression","WP_General","#PLAYER", "", "", function(panel)
+  spawnmenu.AddToolMenuOption("Options","World Progression","WP_General","#User Shortcuts", "", "", function(panel)
     local txt = "bind World Prog to 'worldprogp' "
     panel:Add(txt)
     panel:Button("World Progression Panel", "openworldui")
     panel:Button("Prestige Panel", "wp_ppanel")
     --Add mini panel button(s)
-    --panel:Button("Mini Panel", "wp_ppanel")
-    --panel:Button("PVP Panel", "wp_ppanel")
+    --panel:Button("Mini Panel", "wp_mpanel")
+    --panel:Button("PVP Panel", "wp_pvppanel")
     panel:Button("ⓘ Close Mini Panel(s) ⓘ", "wp_mc")
     panel:Button("ⓘ Help ⓘ", "wp_help")
     panel:Button("⚠ End Combo Timer ⚠", "wp_stop")
@@ -2302,10 +2585,9 @@ hook.Add("PopulateToolMenu","WorldProgSettings", function()
   end)
 
   spawnmenu.AddToolMenuOption("Utilities","World Progression","WPC_Settings","#Client", "", "", function(panel)
-    panel:Button("Load Config", "wpc_load")
-    panel:Button("Save Config", "wpc_save") -- Or have the config auto save on panel close, and replace this as a default config button
+    panel:Button("Reload Config", "wpc_load")
     panel:Button("⚙ Client Settings ⚙", "wp_csettings")
-    panel:Button("Default Settings", "wpc_default")
+    panel:Button("⚠ Default UI Settings ⚠", "wpc_default")
   end)
 
   spawnmenu.AddToolMenuOption("Utilities","World Progression","WPS_Settings","#Server", "", "", function(panel)
